@@ -526,3 +526,171 @@ func TestGetLegalMovesFiltersCheckMoves(t *testing.T) {
 		})
 	}
 }
+
+func TestIsInsufficientMaterial(t *testing.T) {
+	tests := []struct {
+		name     string
+		setupFn  func(*Game)
+		expected bool
+	}{
+		{
+			name: "King vs King",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+			},
+			expected: true,
+		},
+		{
+			name: "King + Knight vs King",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+				g.Board.SetPieceAt("d4", WhiteKnight)
+			},
+			expected: true,
+		},
+		{
+			name: "King vs King + Knight",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+				g.Board.SetPieceAt("d4", BlackKnight)
+			},
+			expected: true,
+		},
+		{
+			name: "King + Bishop vs King",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+				g.Board.SetPieceAt("c1", WhiteBishop)
+			},
+			expected: true,
+		},
+		{
+			name: "King + Bishop vs King + Bishop (same color)",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+				g.Board.SetPieceAt("c1", WhiteBishop) // Dark square (2,7) -> (2+7)%2 = 1
+				g.Board.SetPieceAt("f8", BlackBishop) // Dark square (5,0) -> (5+0)%2 = 1
+			},
+			expected: true,
+		},
+		{
+			name: "King + Bishop vs King + Bishop (different color)",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+				g.Board.SetPieceAt("c1", WhiteBishop) // Dark square
+				g.Board.SetPieceAt("c8", BlackBishop) // Light square
+			},
+			expected: false,
+		},
+		{
+			name: "King + Pawn vs King",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+				g.Board.SetPieceAt("e2", WhitePawn)
+			},
+			expected: false,
+		},
+		{
+			name: "King + Rook vs King",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+				g.Board.SetPieceAt("a1", WhiteRook)
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			game := NewGame()
+			tt.setupFn(game)
+			assert.Equal(t, tt.expected, game.IsInsufficientMaterial())
+		})
+	}
+}
+
+func TestThreefoldRepetition(t *testing.T) {
+	game := NewGame()
+	game.Board.Clear()
+	game.CastlingRights = NoCastling // Ensure castling rights don't change
+
+	// Setup a position where pieces can move back and forth
+	game.Board.SetPieceAt("e1", WhiteKing)
+	game.Board.SetPieceAt("e8", BlackKing)
+	game.Board.SetPieceAt("a1", WhiteRook)
+	game.Board.SetPieceAt("a8", BlackRook)
+
+	// Initial position (1st occurrence)
+	// We need to manually set the position history because we cleared the board
+	// and set pieces manually, bypassing NewGame's initialization
+	game.PositionHistory = []string{game.GeneratePositionKey()}
+
+	// Move 1: White Rook a1-b1
+	game.ExecuteMove(NewMove(FileA, Rank1, FileB, Rank1))
+	// Move 1: Black Rook a8-b8
+	game.ExecuteMove(NewMove(FileA, Rank8, FileB, Rank8))
+
+	// Move 2: White Rook b1-a1 (2nd occurrence of initial position)
+	game.ExecuteMove(NewMove(FileB, Rank1, FileA, Rank1))
+	// Move 2: Black Rook b8-a8
+	game.ExecuteMove(NewMove(FileB, Rank8, FileA, Rank8))
+
+	assert.False(t, game.CanClaimDrawByThreefoldRepetition(), "Should not be draw yet (2 occurrences)")
+
+	// Move 3: White Rook a1-b1
+	game.ExecuteMove(NewMove(FileA, Rank1, FileB, Rank1))
+	// Move 3: Black Rook a8-b8
+	game.ExecuteMove(NewMove(FileA, Rank8, FileB, Rank8))
+
+	// Move 4: White Rook b1-a1 (3rd occurrence of initial position)
+	game.ExecuteMove(NewMove(FileB, Rank1, FileA, Rank1))
+	// Move 4: Black Rook b8-a8
+	game.ExecuteMove(NewMove(FileB, Rank8, FileA, Rank8))
+
+	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Should be draw (3 occurrences)")
+}
+
+func TestThreefoldRepetitionFromStart(t *testing.T) {
+	game := NewGame()
+	// Start position is 1st occurrence
+
+	// Move 1: White Knight g1-f3
+	game.ExecuteMove(NewMove(FileG, Rank1, FileF, Rank3))
+	// Move 1: Black Knight g8-f6
+	game.ExecuteMove(NewMove(FileG, Rank8, FileF, Rank6))
+
+	// Move 2: White Knight f3-g1 (2nd occurrence of start position)
+	game.ExecuteMove(NewMove(FileF, Rank3, FileG, Rank1))
+	// Move 2: Black Knight f6-g8
+	game.ExecuteMove(NewMove(FileF, Rank6, FileG, Rank8))
+
+	assert.False(t, game.CanClaimDrawByThreefoldRepetition(), "Should not be draw yet (2 occurrences)")
+
+	// Move 3: White Knight g1-f3
+	game.ExecuteMove(NewMove(FileG, Rank1, FileF, Rank3))
+	// Move 3: Black Knight g8-f6
+	game.ExecuteMove(NewMove(FileG, Rank8, FileF, Rank6))
+
+	// Move 4: White Knight f3-g1 (3rd occurrence of start position)
+	game.ExecuteMove(NewMove(FileF, Rank3, FileG, Rank1))
+	// Move 4: Black Knight f6-g8
+	game.ExecuteMove(NewMove(FileF, Rank6, FileG, Rank8))
+
+	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Should be draw (3 occurrences)")
+}

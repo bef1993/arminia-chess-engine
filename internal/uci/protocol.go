@@ -123,8 +123,34 @@ func (u *Protocol) handlePosition(args []string) error {
 		}
 		return nil
 	} else if args[0] == "fen" {
-		// FEN support not yet implemented
-		return u.writeLine("info string FEN positions not yet supported")
+		// Find where "moves" starts, if any
+		movesIndex := -1
+		for i, arg := range args {
+			if arg == "moves" {
+				movesIndex = i
+				break
+			}
+		}
+
+		var fenString string
+		var moveArgs []string
+
+		if movesIndex != -1 {
+			fenString = strings.Join(args[1:movesIndex], " ")
+			moveArgs = args[movesIndex+1:]
+		} else {
+			fenString = strings.Join(args[1:], " ")
+		}
+
+		if err := u.game.LoadFEN(fenString); err != nil {
+			return u.writeLine(fmt.Sprintf("info string Invalid FEN: %v", err))
+		}
+
+		if len(moveArgs) > 0 {
+			return u.applyMoves(moveArgs)
+		}
+
+		return nil
 	}
 
 	return u.writeLine("info string position command error")
@@ -196,6 +222,20 @@ func (u *Protocol) handleGo(args []string) error {
 		8-move.FromRow,
 		rune('a'+move.ToCol),
 		8-move.ToRow)
+
+	// Handle promotion in output
+	if move.PromotionPiece != engine.NoPiece {
+		switch move.PromotionPiece.Type() {
+		case engine.Queen:
+			moveStr += "q"
+		case engine.Rook:
+			moveStr += "r"
+		case engine.Bishop:
+			moveStr += "b"
+		case engine.Knight:
+			moveStr += "n"
+		}
+	}
 
 	return u.writeLine(fmt.Sprintf("bestmove %s", moveStr))
 }

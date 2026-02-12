@@ -45,8 +45,10 @@ The modular structure enables different use cases:
 - **Board Representation**: Standard 8x8 chess board with piece placement
 - **Piece Types**: Pawn, Knight, Bishop, Rook, Queen, King
 - **Move Generation**: Complete legal move generation for all piece types
+- **Move Validation**: Rejects illegal moves and moves that leave king in check
 - **Special Moves**: Castling, En Passant, Pawn Promotion
 - **Game State**: Tracks current turn and move history
+- **Draw Detection**: Stalemate, 50-move rule, Insufficient Material, Threefold Repetition
 - **Display**: ASCII board visualization with Unicode chess symbols
 - **Comprehensive Tests**: Full test coverage for board and move generation
 
@@ -90,12 +92,11 @@ Arminia implements the **UCI (Universal Chess Interface)** protocol for engine c
 - ✅ `uci` - Engine identification
 - ✅ `isready` - Readiness check
 - ✅ `position startpos` - Board setup
+- ✅ `position fen` - FEN board setup
 - ✅ `go` - Move generation
 - ✅ `setoption` - Option configuration
 - ✅ `ucinewgame` - Game reset
 - ✅ `quit` - Exit
-- ❌ FEN positions (planned)
-- ❌ Move validation (planned)
 
 Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 
@@ -117,7 +118,8 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - [x] Check detection
 - [x] Checkmate detection
 - [x] Move validation (prevent illegal moves)
-- [ ] FEN position support
+- [x] FEN position support
+- [x] Draw detection (Stalemate, 50-move, Insufficient Material, Repetition)
 - [ ] Evaluation function
 - [ ] Minimax search
 

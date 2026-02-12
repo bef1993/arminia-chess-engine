@@ -131,15 +131,15 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Basic command parsing
 - ✅ Position setup from startpos
 - ✅ Move execution via UCI
-- ❌ No FEN support
+- ✅ FEN support
 - ✅ Move validation (rejects illegal moves)
 - ❌ No time management
 
 ### Board State
 - ✅ Piece placement
 - ✅ Turn management
-- ❌ No half-move clock (50-move rule)
-- ❌ No full-move counter
+- ✅ No half-move clock (50-move rule)
+- ✅ No full-move counter
 - ✅ Castling rights tracking
 - ✅ En passant target tracking
 
@@ -194,7 +194,7 @@ func (mg *MoveGenerator) generateXxxMoves(col, row int, color Color) []Move {
 ```
 
 ### Adding Tests
-Tests follow standard Go pattern in `*_test.go` files:
+Tests follow standard Go pattern in `*_test.go` files. Use `github.com/stretchr/testify/assert` for assertions.
 
 ```go
 func TestFeature(t *testing.T) {
@@ -244,7 +244,7 @@ func TestFeature(t *testing.T) {
 - [x] Check detection (needed for legal move validation)
 - [x] Checkmate detection (needed to prevent illegal moves)
 - [x] Move validation (reject moves that leave king in check)
-- [ ] FEN support (Moved to Phase 3)
+- [x] FEN support (Moved to Phase 3)
 
 **Current status:** 
 - Basic UCI working with full move validation
@@ -284,14 +284,15 @@ Where `config.toml` points to your Arminia UCI binary
 1. **Implement checkmate/stalemate detection**
    - [x] Add `IsCheckmate()`
    - [x] Add `IsStalemate()`
+   - [x] Add `IsDraw()` (50-move, insufficient material, repetition)
 
 2. **Add move validation** in `internal/engine/moves.go`
    - [x] Filter moves that leave king in check
    - [x] Return only legal moves from `GetLegalMoves()`
 
 3. **Add FEN support** in `internal/uci/protocol.go` (Phase 3)
-   - Parse FEN notation
-   - Set board position from FEN
+   - [x] Parse FEN notation
+   - [x] Set board position from FEN
 
 ### Medium Priority
 4. **Implement special moves**
@@ -300,8 +301,8 @@ Where `config.toml` points to your Arminia UCI binary
    - Pawn promotion in `moves.go` and board operations
 
 5. **Add game state tracking**
-   - Half-move clock
-   - Full-move counter
+   - [x] Half-move clock
+   - [x] Full-move counter
    - [x] Castling rights
    - [x] En passant target square
 
