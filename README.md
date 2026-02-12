@@ -115,24 +115,13 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 ## Next Steps
 
 **High Priority (Phase 3):**
-- [x] Check detection
-- [x] Checkmate detection
-- [x] Move validation (prevent illegal moves)
 - [x] FEN position support
-- [x] Draw detection (Stalemate, 50-move, Insufficient Material, Repetition)
-- [ ] Evaluation function
-- [ ] Minimax search
+- [ ] Evaluation function (Perspective-based)
+- [ ] Search algorithm (Negamax with Alpha-Beta pruning)
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 
 Reference: https://lichess.org/api#tag/Bot
-
-## Similar Engines
-
-- **Stockfish** - Leading open-source chess engine
-- **Leela Chess Zero (Lc0)** - Neural network-based engine
-- **Komodo** - Commercial engine
-- **Rybka** - Specialized UCI engine
 
 ## Performance Goals
 
@@ -140,10 +129,6 @@ Reference: https://lichess.org/api#tag/Bot
 - **Search Speed**: 100,000+ nodes per second
 - **Opening Strength**: Standard openings library
 - **Endgame**: Tablebase integration for perfect play
-
-## Next Steps
-
-See the Development Roadmap above for the implementation sequence.
 
 ## Testing
 

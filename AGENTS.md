@@ -119,7 +119,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Stalemate detection
 - ✅ En passant support
 - ✅ Castling support
-- ✅ Pawn promotion logic (via UCI/CLI parsing)
+- ✅ Pawn promotion logic
 
 ### Move Selection
 - Currently returns **first legal move** (not intelligent)
@@ -133,7 +133,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Move execution via UCI
 - ✅ FEN support
 - ✅ Move validation (rejects illegal moves)
-- ✅ Time control parsing (but not yet used for search duration)
+- ❌ No time management
 
 ### Board State
 - ✅ Piece placement
@@ -148,11 +148,11 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 ### Move Struct
 ```go
 type Move struct {
-FromCol        int
-FromRow        int
-ToCol          int
-ToRow          int
-PromotionPiece Piece // 0 if no promotion
+    FromCol        int
+    FromRow        int
+    ToCol          int
+    ToRow          int
+    PromotionPiece Piece // 0 if no promotion
 }
 ```
 
@@ -196,6 +196,7 @@ func (mg *MoveGenerator) generateXxxMoves(col, row int, color Color) []Move {
 
 ### Adding Tests
 Tests follow standard Go pattern in `*_test.go` files. Use `github.com/stretchr/testify/assert` for assertions.
+Tests follow standard Go pattern in `*_test.go` files:
 
 ```go
 func TestFeature(t *testing.T) {
@@ -281,31 +282,33 @@ Where `config.toml` points to your Arminia UCI binary
 
 ## Next Steps for Agents
 
-### High Priority (Phase 3)
-1. **Implement checkmate/stalemate detection**
-   - [x] Add `IsCheckmate()`
-   - [x] Add `IsStalemate()`
-   - [x] Add `IsDraw()` (50-move, insufficient material, repetition)
+### High Priority: Search & Evaluation (Phase 3)
 
-2. **Add move validation** in `internal/engine/moves.go`
-   - [x] Filter moves that leave king in check
-   - [x] Return only legal moves from `GetLegalMoves()`
+The next major goal is to make the engine intelligent by implementing a search algorithm.
 
-3. **Add FEN support** in `internal/uci/protocol.go` (Phase 3)
-   - [x] Parse FEN notation
-   - [x] Set board position from FEN
+#### 1. Create an Evaluation Function (`internal/engine/eval.go`)
 
-### Medium Priority
-4. **Implement special moves**
-   - [x] Castling logic in `moves.go`
-   - [x] En passant logic in `moves.go`
-   - [x] Pawn promotion in `moves.go` and board operations
+- **Approach:** Perspective-based scoring (Side-to-move).
+- **Logic:**
+    - A positive score always means the **current side to move** is winning.
+    - Calculate material difference: `diff = WhiteMaterial - BlackMaterial`.
+    - If `game.CurrentTurn == White`, return `diff`.
+    - If `game.CurrentTurn == Black`, return `-diff`.
+    - This allows the use of the **Negamax** algorithm, simplifying the search code.
 
-5. **Add game state tracking**
-   - [x] Half-move clock
-   - [x] Full-move counter
-   - [x] Castling rights
-   - [x] En passant target square
+#### 2. Implement Search (`internal/engine/search.go`)
+
+- **Algorithm:** Negamax (variant of Minimax).
+- **Logic:**
+    - Recursive function `Search(game, depth, alpha, beta)`.
+    - Because of perspective scoring, you simply maximize the score for the current player.
+    - Recursive call: `score = -Search(child, depth-1, -beta, -alpha)`.
+
+#### 3. Integrate into UCI (`internal/uci/protocol.go`)
+
+- Modify `handleGo` to call the search function.
+- **Important:** The UCI protocol expects absolute scores (White advantage is positive).
+- If the engine uses perspective scoring internally, flip the sign for Black before printing `info score cp <x>`.
 
 ### Testing Requirements
 - Every new feature must have corresponding unit tests
