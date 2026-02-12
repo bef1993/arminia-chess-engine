@@ -13,7 +13,7 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("Arminia Chess Engine - Interactive CLI")
-	fmt.Println("Commands: move <from> <to> (e.g., e2 e4), board, quit")
+	fmt.Println("Commands: move <uci_move> (e.g., e2e4, e7e8q), board, quit")
 	fmt.Println()
 
 	for {
@@ -25,6 +25,18 @@ func main() {
 		}
 		if game.IsStalemate() {
 			fmt.Println("Stalemate! Game Over.")
+			return
+		}
+		if game.IsDraw() {
+			if game.IsDrawByFiftyMoveRule() {
+				fmt.Println("Draw by 50-move rule! Game Over.")
+			} else if game.IsInsufficientMaterial() {
+				fmt.Println("Draw by insufficient material! Game Over.")
+			} else if game.CanClaimDrawByThreefoldRepetition() {
+				fmt.Println("Draw by threefold repetition! Game Over.")
+			} else {
+				fmt.Println("Draw! Game Over.")
+			}
 			return
 		}
 
@@ -57,11 +69,12 @@ func main() {
 		case "board":
 			continue
 		case "move":
-			if len(parts) < 3 {
-				fmt.Println("Usage: move <from> <to> (e.g., e2 e4)")
+			if len(parts) < 2 {
+				fmt.Println("Usage: move <uci_move> (e.g., e2e4 or e7e8q)")
 				continue
 			}
-			if err := handleMove(game, parts[1], parts[2]); err != nil {
+
+			if err := handleMove(game, parts[1]); err != nil {
 				fmt.Println("Error:", err)
 			}
 		default:
@@ -70,29 +83,12 @@ func main() {
 	}
 }
 
-func handleMove(game *engine.Game, fromStr, toStr string) error {
-	if len(fromStr) != 2 || len(toStr) != 2 {
-		return fmt.Errorf("invalid square format")
+func handleMove(game *engine.Game, moveStr string) error {
+	move, err := engine.ParseMove(moveStr, game)
+	if err != nil {
+		return err
 	}
 
-	fromCol := int(fromStr[0] - 'a')
-	fromRow := 8 - int(fromStr[1]-'0')
-	toCol := int(toStr[0] - 'a')
-	toRow := 8 - int(toStr[1]-'0')
-
-	if fromCol < 0 || fromCol > 7 || fromRow < 0 || fromRow > 7 ||
-		toCol < 0 || toCol > 7 || toRow < 0 || toRow > 7 {
-		return fmt.Errorf("square out of bounds")
-	}
-
-	moves := game.GetLegalMoves()
-	for _, move := range moves {
-		if move.FromCol == fromCol && move.FromRow == fromRow &&
-			move.ToCol == toCol && move.ToRow == toRow {
-			game.ExecuteMove(move)
-			return nil
-		}
-	}
-
-	return fmt.Errorf("illegal move")
+	game.ExecuteMove(move)
+	return nil
 }

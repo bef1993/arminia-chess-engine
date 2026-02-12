@@ -159,50 +159,12 @@ func (u *Protocol) handlePosition(args []string) error {
 // applyMoves applies a sequence of moves to the current position
 func (u *Protocol) applyMoves(moveStrings []string) error {
 	for _, moveStr := range moveStrings {
-		if len(moveStr) < 4 {
-			return u.writeLine(fmt.Sprintf("info string Invalid move format: %s", moveStr))
+		move, err := engine.ParseMove(moveStr, u.game)
+		if err != nil {
+			return u.writeLine(fmt.Sprintf("info string Illegal move: %v", err))
 		}
-
-		// Parse move: format is e2e4 or e7e8q (with promotion)
-		fromCol := int(moveStr[0] - 'a')
-		fromRow := 8 - int(moveStr[1]-'0')
-		toCol := int(moveStr[2] - 'a')
-		toRow := 8 - int(moveStr[3]-'0')
-
-		var promotionPiece engine.Piece
-		if len(moveStr) == 5 {
-			switch moveStr[4] {
-			case 'q':
-				promotionPiece = engine.Queen.FromColor(u.game.CurrentTurn)
-			case 'r':
-				promotionPiece = engine.Rook.FromColor(u.game.CurrentTurn)
-			case 'b':
-				promotionPiece = engine.Bishop.FromColor(u.game.CurrentTurn)
-			case 'n':
-				promotionPiece = engine.Knight.FromColor(u.game.CurrentTurn)
-			}
-
-		}
-
-		// Check if move exists in legal moves
-		moves := u.game.GetLegalMoves()
-		found := false
-
-		for _, move := range moves {
-			if move.FromCol == fromCol && move.FromRow == fromRow &&
-				move.ToCol == toCol && move.ToRow == toRow &&
-				move.PromotionPiece == promotionPiece {
-				found = true
-				u.game.ExecuteMove(move)
-				break
-			}
-		}
-
-		if !found {
-			return u.writeLine(fmt.Sprintf("info string Illegal move: %s", moveStr))
-		}
+		u.game.ExecuteMove(move)
 	}
-
 	return nil
 }
 
@@ -234,6 +196,8 @@ func (u *Protocol) handleGo(args []string) error {
 			moveStr += "b"
 		case engine.Knight:
 			moveStr += "n"
+		default:
+			panic("unhandled default case")
 		}
 	}
 

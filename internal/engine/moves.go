@@ -1,5 +1,9 @@
 package engine
 
+import (
+	"fmt"
+)
+
 // Move represents a chess move (pure data)
 type Move struct {
 	FromCol        int
@@ -29,6 +33,65 @@ func NewPromotionMove(fromCol, fromRow, toCol, toRow int, promotionPiece Piece) 
 		ToRow:          toRow,
 		PromotionPiece: promotionPiece,
 	}
+}
+
+// ParseMove parses a UCI move string (e.g., "e2e4", "a7a8q") into a Move struct.
+// It validates the move against the current game state (legal moves).
+func ParseMove(moveStr string, game *Game) (Move, error) {
+	if len(moveStr) < 4 {
+		return Move{}, fmt.Errorf("invalid move format: %s", moveStr)
+	}
+
+	// Parse move: format is e2e4 or e7e8q (with promotion)
+	fromCol := int(moveStr[0] - 'a')
+	fromRow := 8 - int(moveStr[1]-'0')
+	toCol := int(moveStr[2] - 'a')
+	toRow := 8 - int(moveStr[3]-'0')
+
+	if fromCol < 0 || fromCol > 7 || fromRow < 0 || fromRow > 7 ||
+		toCol < 0 || toCol > 7 || toRow < 0 || toRow > 7 {
+		return Move{}, fmt.Errorf("square out of bounds")
+	}
+
+	var promotionPiece Piece
+	if len(moveStr) == 5 {
+		switch moveStr[4] {
+		case 'q':
+			promotionPiece = Queen.FromColor(game.CurrentTurn)
+		case 'r':
+			promotionPiece = Rook.FromColor(game.CurrentTurn)
+		case 'b':
+			promotionPiece = Bishop.FromColor(game.CurrentTurn)
+		case 'n':
+			promotionPiece = Knight.FromColor(game.CurrentTurn)
+		default:
+			return Move{}, fmt.Errorf("invalid promotion piece: %c", moveStr[4])
+		}
+	}
+
+	// Check if move exists in legal moves
+	moves := game.GetLegalMoves()
+	for _, move := range moves {
+		if move.FromCol == fromCol && move.FromRow == fromRow &&
+			move.ToCol == toCol && move.ToRow == toRow &&
+			move.PromotionPiece == promotionPiece {
+			return move, nil
+		}
+	}
+
+	// If we have a promotion move but user didn't specify promotion piece
+	// Check if there are any promotion moves for these coordinates
+	if promotionPiece == NoPiece {
+		for _, move := range moves {
+			if move.FromCol == fromCol && move.FromRow == fromRow &&
+				move.ToCol == toCol && move.ToRow == toRow &&
+				move.PromotionPiece != NoPiece {
+				return Move{}, fmt.Errorf("promotion piece required (e.g., %sq)", moveStr)
+			}
+		}
+	}
+
+	return Move{}, fmt.Errorf("illegal move: %s", moveStr)
 }
 
 // MoveGenerator generates legal moves for the current position
@@ -91,6 +154,7 @@ func (mg *MoveGenerator) GenerateMovesForPiece(col, row int) []Move {
 		moves = mg.generateQueenMoves(col, row, piece.Color())
 	case King:
 		moves = mg.generateKingMoves(col, row, piece.Color())
+	case NoType:
 	}
 
 	return moves
