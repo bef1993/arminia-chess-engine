@@ -119,7 +119,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Stalemate detection
 - ✅ En passant support
 - ✅ Castling support
-- ❌ No pawn promotion logic
+- ✅ Pawn promotion logic (via UCI/CLI parsing)
 
 ### Move Selection
 - Currently returns **first legal move** (not intelligent)
@@ -133,13 +133,13 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Move execution via UCI
 - ✅ FEN support
 - ✅ Move validation (rejects illegal moves)
-- ❌ No time management
+- ✅ Time control parsing (but not yet used for search duration)
 
 ### Board State
 - ✅ Piece placement
 - ✅ Turn management
-- ✅ No half-move clock (50-move rule)
-- ✅ No full-move counter
+- ✅ Half-move clock (50-move rule)
+- ✅ Full-move counter
 - ✅ Castling rights tracking
 - ✅ En passant target tracking
 
@@ -148,10 +148,11 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 ### Move Struct
 ```go
 type Move struct {
-    FromCol int  // 0-7 (file a-h)
-    FromRow int  // 0-7 (rank 8-1)
-    ToCol   int
-    ToRow   int
+FromCol        int
+FromRow        int
+ToCol          int
+ToRow          int
+PromotionPiece Piece // 0 if no promotion
 }
 ```
 
@@ -298,7 +299,7 @@ Where `config.toml` points to your Arminia UCI binary
 4. **Implement special moves**
    - [x] Castling logic in `moves.go`
    - [x] En passant logic in `moves.go`
-   - Pawn promotion in `moves.go` and board operations
+   - [x] Pawn promotion in `moves.go` and board operations
 
 5. **Add game state tracking**
    - [x] Half-move clock

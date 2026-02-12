@@ -17,25 +17,21 @@ func main() {
 	fmt.Println()
 
 	for {
-		game.PrintBoard()
+		game.PrintBoard(os.Stdout)
 
-		if game.IsCheckmate() {
-			fmt.Println("Checkmate! Game Over.")
-			return
-		}
-		if game.IsStalemate() {
-			fmt.Println("Stalemate! Game Over.")
-			return
-		}
-		if game.IsDraw() {
-			if game.IsDrawByFiftyMoveRule() {
+		status := game.GetGameStatus()
+		if status != engine.StatusActive {
+			switch status {
+			case engine.StatusCheckmate:
+				fmt.Println("Checkmate! Game Over.")
+			case engine.StatusStalemate:
+				fmt.Println("Stalemate! Game Over.")
+			case engine.StatusDraw50Move:
 				fmt.Println("Draw by 50-move rule! Game Over.")
-			} else if game.IsInsufficientMaterial() {
-				fmt.Println("Draw by insufficient material! Game Over.")
-			} else if game.CanClaimDrawByThreefoldRepetition() {
+			case engine.StatusDrawRepetition:
 				fmt.Println("Draw by threefold repetition! Game Over.")
-			} else {
-				fmt.Println("Draw! Game Over.")
+			case engine.StatusDrawInsufficientMaterial:
+				fmt.Println("Draw by insufficient material! Game Over.")
 			}
 			return
 		}

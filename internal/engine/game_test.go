@@ -694,3 +694,64 @@ func TestThreefoldRepetitionFromStart(t *testing.T) {
 
 	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Should be draw (3 occurrences)")
 }
+
+func TestGetGameStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		setupFn  func(*Game)
+		expected GameStatus
+	}{
+		{
+			name:     "Active Game",
+			setupFn:  func(g *Game) {},
+			expected: StatusActive,
+		},
+		{
+			name: "Checkmate",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				// Fool's Mate setup
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("d1", WhitePawn)
+				g.Board.SetPieceAt("f1", WhitePawn)
+				g.Board.SetPieceAt("e3", BlackQueen)
+			},
+			expected: StatusCheckmate,
+		},
+		{
+			name: "Stalemate",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("a8", BlackKing)
+				g.Board.SetPieceAt("c7", WhiteQueen)
+				g.Board.SetPieceAt("h1", WhiteKing)
+				g.CurrentTurn = Black
+			},
+			expected: StatusStalemate,
+		},
+		{
+			name: "Insufficient Material",
+			setupFn: func(g *Game) {
+				g.Board.Clear()
+				g.Board.SetPieceAt("e1", WhiteKing)
+				g.Board.SetPieceAt("e8", BlackKing)
+			},
+			expected: StatusDrawInsufficientMaterial,
+		},
+		{
+			name: "50-Move Rule",
+			setupFn: func(g *Game) {
+				g.HalfMoveClock = 100
+			},
+			expected: StatusDraw50Move,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			game := NewGame()
+			tt.setupFn(game)
+			assert.Equal(t, tt.expected, game.GetGameStatus())
+		})
+	}
+}

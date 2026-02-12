@@ -3,9 +3,23 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 	"unicode"
+)
+
+// GameStatus represents the current state of the game
+type GameStatus int
+
+const (
+	StatusActive GameStatus = iota
+	StatusCheckmate
+	StatusStalemate
+	StatusDraw50Move
+	StatusDrawRepetition
+	StatusDrawInsufficientMaterial
 )
 
 // Game represents a chess game
@@ -41,45 +55,50 @@ func NewGame() *Game {
 }
 
 // PrintBoard prints the current board state to the console
-func (g *Game) PrintBoard() {
-	fmt.Println("  a b c d e f g h")
-	fmt.Println("  ╔═╦═╦═╦═╦═╦═╦═╦═╗")
+func (g *Game) PrintBoard(w io.Writer) {
+	if w == nil {
+		w = os.Stdout
+	}
+	fmt.Fprintln(w, "  a b c d e f g h")
+	fmt.Fprintln(w, "  ╔═╦═╦═╦═╦═╦═╦═╦═╗")
 
 	for row := 0; row < 8; row++ {
-		fmt.Print(8 - row)
-		fmt.Print("║")
+		fmt.Fprint(w, 8-row)
+		fmt.Fprint(w, " ")
+		fmt.Fprint(w, "║")
 
 		for col := 0; col < 8; col++ {
 			piece := g.Board.GetPiece(col, row)
 			if piece != NoPiece {
-				fmt.Print(piece.GetSymbol())
+				fmt.Fprint(w, piece.GetSymbol())
 			} else {
-				fmt.Print(" ")
+				fmt.Fprint(w, " ")
 			}
 
 			if col < 7 {
-				fmt.Print("║")
+				fmt.Fprint(w, "║")
 			} else {
-				fmt.Print("║")
+				fmt.Fprint(w, "║")
 			}
 		}
 
-		fmt.Print(8 - row)
+		fmt.Fprint(w, " ")
+		fmt.Fprint(w, 8-row)
 		if row < 7 {
-			fmt.Println()
-			fmt.Println("  ╠═╬═╬═╬═╬═╬═╬═╬═╣")
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "  ╠═╬═╬═╬═╬═╬═╬═╬═╣")
 		}
 	}
 
-	fmt.Println()
-	fmt.Println("  ╚═╩═╩═╩═╩═╩═╩═╩═╝")
-	fmt.Println("  a b c d e f g h")
-	fmt.Println()
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "  ╚═╩═╩═╩═╩═╩═╩═╩═╝")
+	fmt.Fprintln(w, "  a b c d e f g h")
+	fmt.Fprintln(w)
 
 	if g.CurrentTurn == White {
-		fmt.Println("Current turn: White")
+		fmt.Fprintln(w, "Current turn: White")
 	} else {
-		fmt.Println("Current turn: Black")
+		fmt.Fprintln(w, "Current turn: Black")
 	}
 }
 
@@ -238,6 +257,35 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	}
 }
 
+// GetGameStatus returns the current status of the game
+func (g *Game) GetGameStatus() GameStatus {
+	// 1. Check for Checkmate and Stalemate (require move generation)
+	legalMoves := g.GetLegalMoves()
+	if len(legalMoves) == 0 {
+		if g.Board.IsKingInCheck(g.CurrentTurn) {
+			return StatusCheckmate
+		}
+		return StatusStalemate
+	}
+
+	// 2. Check for Insufficient Material
+	if g.IsInsufficientMaterial() {
+		return StatusDrawInsufficientMaterial
+	}
+
+	// 3. Check for 50-Move Rule
+	if g.IsDrawByFiftyMoveRule() {
+		return StatusDraw50Move
+	}
+
+	// 4. Check for Threefold Repetition
+	if g.CanClaimDrawByThreefoldRepetition() {
+		return StatusDrawRepetition
+	}
+
+	return StatusActive
+}
+
 // IsDrawByFiftyMoveRule checks if 50 moves have passed without capture or pawn move
 func (g *Game) IsDrawByFiftyMoveRule() bool {
 	return g.HalfMoveClock >= 100 // 50 full moves = 100 half-moves
@@ -279,19 +327,8 @@ func (g *Game) IsStalemate() bool {
 
 // IsDraw checks for any draw condition (stalemate, 50-move rule, insufficient material, repetition)
 func (g *Game) IsDraw() bool {
-	if g.IsStalemate() {
-		return true
-	}
-	if g.IsDrawByFiftyMoveRule() {
-		return true
-	}
-	if g.IsInsufficientMaterial() {
-		return true
-	}
-	if g.CanClaimDrawByThreefoldRepetition() {
-		return true
-	}
-	return false
+	status := g.GetGameStatus()
+	return status != StatusActive && status != StatusCheckmate
 }
 
 // IsInsufficientMaterial checks if there are enough pieces to force a checkmate

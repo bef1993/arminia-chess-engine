@@ -5,6 +5,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
+	"strconv"
 	"strings"
 )
 
@@ -34,10 +36,13 @@ func (u *Protocol) Run() error {
 			continue
 		}
 
+		slog.Info("UCI Input", "command", line)
+
 		if err := u.handleCommand(line); err != nil {
 			if err == io.EOF {
 				return nil
 			}
+			slog.Error("UCI Error", "error", err)
 			return err
 		}
 	}
@@ -70,6 +75,7 @@ func (u *Protocol) handleCommand(line string) error {
 	case "quit":
 		return io.EOF // Signal to exit
 	default:
+		slog.Warn("Unknown command", "command", command)
 		return u.writeLine(fmt.Sprintf("info string Unknown command: %s", command))
 	}
 }
@@ -100,11 +106,13 @@ func (u *Protocol) handleIsReady() error {
 func (u *Protocol) handleSetOption(args []string) error {
 	// Parse: setoption name <id> value <x>
 	// For now, we ignore options but accept them gracefully
+	slog.Info("SetOption", "args", args)
 	return nil
 }
 
 // handleUCINewGame resets for a new game
 func (u *Protocol) handleUCINewGame() error {
+	slog.Info("New Game")
 	u.game = engine.NewGame()
 	return nil
 }
@@ -143,6 +151,7 @@ func (u *Protocol) handlePosition(args []string) error {
 		}
 
 		if err := u.game.LoadFEN(fenString); err != nil {
+			slog.Error("Invalid FEN", "fen", fenString, "error", err)
 			return u.writeLine(fmt.Sprintf("info string Invalid FEN: %v", err))
 		}
 
@@ -161,6 +170,7 @@ func (u *Protocol) applyMoves(moveStrings []string) error {
 	for _, moveStr := range moveStrings {
 		move, err := engine.ParseMove(moveStr, u.game)
 		if err != nil {
+			slog.Error("Illegal move", "move", moveStr, "error", err)
 			return u.writeLine(fmt.Sprintf("info string Illegal move: %v", err))
 		}
 		u.game.ExecuteMove(move)
@@ -168,12 +178,84 @@ func (u *Protocol) applyMoves(moveStrings []string) error {
 	return nil
 }
 
+// SearchLimits holds the parsed parameters from the "go" command
+type SearchLimits struct {
+	WhiteTime      int // wtime
+	BlackTime      int // btime
+	WhiteIncrement int // winc
+	BlackIncrement int // binc
+	MovesToGo      int // movestogo
+	Depth          int // depth
+	Nodes          int // nodes
+	Mate           int // mate
+	MoveTime       int // movetime
+	Infinite       bool
+}
+
 // handleGo starts search for best move
 func (u *Protocol) handleGo(args []string) error {
+	limits := SearchLimits{}
+
+	// Parse arguments
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "wtime":
+			if i+1 < len(args) {
+				limits.WhiteTime, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "btime":
+			if i+1 < len(args) {
+				limits.BlackTime, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "winc":
+			if i+1 < len(args) {
+				limits.WhiteIncrement, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "binc":
+			if i+1 < len(args) {
+				limits.BlackIncrement, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "movestogo":
+			if i+1 < len(args) {
+				limits.MovesToGo, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "depth":
+			if i+1 < len(args) {
+				limits.Depth, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "nodes":
+			if i+1 < len(args) {
+				limits.Nodes, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "mate":
+			if i+1 < len(args) {
+				limits.Mate, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "movetime":
+			if i+1 < len(args) {
+				limits.MoveTime, _ = strconv.Atoi(args[i+1])
+				i++
+			}
+		case "infinite":
+			limits.Infinite = true
+		}
+	}
+
+	slog.Info("Search started", "limits", limits)
+
 	// For now, just return a random legal move
 	moves := u.game.GetLegalMoves()
 
 	if len(moves) == 0 {
+		slog.Info("No legal moves found")
 		return u.writeLine("bestmove 0000")
 	}
 
@@ -197,15 +279,18 @@ func (u *Protocol) handleGo(args []string) error {
 		case engine.Knight:
 			moveStr += "n"
 		default:
-			panic("unhandled default case")
+			slog.Warn("Unknown promotion piece type, defaulting to Queen", "type", move.PromotionPiece.Type())
+			moveStr += "q"
 		}
 	}
 
+	slog.Info("Best move found", "move", moveStr)
 	return u.writeLine(fmt.Sprintf("bestmove %s", moveStr))
 }
 
 // writeLine writes a line to output
 func (u *Protocol) writeLine(text string) error {
+	slog.Info("UCI Output", "response", text)
 	_, err := fmt.Fprintln(u.output, text)
 	return err
 }
