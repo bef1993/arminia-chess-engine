@@ -2,6 +2,7 @@ package uci
 
 import (
 	"arminia-chess-engine/internal/engine"
+	"arminia-chess-engine/internal/search"
 	"bufio"
 	"fmt"
 	"io"
@@ -251,16 +252,10 @@ func (u *Protocol) handleGo(args []string) error {
 
 	slog.Info("Search started", "limits", limits)
 
-	// For now, just return a random legal move
-	moves := u.game.GetLegalMoves()
+	// Call the search package
+	// TODO: Pass limits to search
+	move := search.Search(u.game, 4)
 
-	if len(moves) == 0 {
-		slog.Info("No legal moves found")
-		return u.writeLine("bestmove 0000")
-	}
-
-	// Select first legal move for now (TODO: implement proper search)
-	move := moves[0]
 	moveStr := fmt.Sprintf("%c%d%c%d",
 		rune('a'+move.FromCol),
 		8-move.FromRow,

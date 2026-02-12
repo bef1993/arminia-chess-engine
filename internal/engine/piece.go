@@ -21,6 +21,16 @@ const (
 	King
 )
 
+// Piece values for standard material counting and move ordering
+const (
+	PawnValue   = 100
+	KnightValue = 320
+	BishopValue = 330
+	RookValue   = 500
+	QueenValue  = 900
+	KingValue   = 20000 // Represents "Infinity" (Checkmate)
+)
+
 func (p PieceType) White() Piece {
 	return Piece(p)
 }
@@ -123,4 +133,24 @@ func (p Piece) GetSymbol() string {
 		return "♚"
 	}
 	return " "
+}
+
+// Value returns the standard material value of the piece
+func (p Piece) Value() int {
+	switch p.Type() {
+	case Pawn:
+		return PawnValue
+	case Knight:
+		return KnightValue
+	case Bishop:
+		return BishopValue
+	case Rook:
+		return RookValue
+	case Queen:
+		return QueenValue
+	case King:
+		return KingValue
+	default:
+		return 0
+	}
 }

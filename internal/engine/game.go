@@ -484,11 +484,12 @@ func (g *Game) LoadFEN(fen string) error {
 	}
 
 	// 2. Active color
-	if parts[1] == "w" {
+	switch parts[1] {
+	case "w":
 		g.CurrentTurn = White
-	} else if parts[1] == "b" {
+	case "b":
 		g.CurrentTurn = Black
-	} else {
+	default:
 		return errors.New("invalid active color")
 	}
 
