@@ -88,13 +88,13 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Zobrist Hashing**: Efficient board state representation for table lookups.
 - **Transposition Tables**: Caching search results to avoid redundant calculations.
 - **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
+- **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 
 ## Next Steps
 
 **High Priority (Phase 4 - Advanced Search):**
 
 - [ ] Iterative Deepening & Time Management
-- [ ] Quiescence Search
 - [ ] Heuristic Move Ordering
 
 **Future Improvements (Phase 5+):**

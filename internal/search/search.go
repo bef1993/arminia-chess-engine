@@ -66,7 +66,7 @@ func negamax(game *engine.Game, depth int, alpha, beta int, ply int, nodes *int)
 	}
 
 	if depth == 0 {
-		return Evaluate(game), engine.Move{}
+		return quiescence(game, alpha, beta, nodes), engine.Move{}
 	}
 
 	moves := game.GetLegalMoves()
@@ -126,4 +126,88 @@ func negamax(game *engine.Game, depth int, alpha, beta int, ply int, nodes *int)
 	GlobalTT.Store(game.ZobristHash, depth, ttScore, flag, bestMove)
 
 	return bestScore, bestMove
+}
+
+// quiescence search extends the search at leaf nodes to avoid the horizon effect.
+// It only considers "noisy" moves (captures and promotions).
+func quiescence(game *engine.Game, alpha, beta int, nodes *int) int {
+	alphaOrig := alpha
+
+	// 1. Transposition Table Lookup
+	// We can use any entry from the TT because QS is effectively depth 0,
+	// and all TT entries have depth >= 0.
+	if entry, ok := GlobalTT.Probe(game.ZobristHash); ok {
+		score := entry.Score
+		if entry.Flag == FlagExact {
+			return score
+		}
+		if entry.Flag == FlagLowerBound {
+			if score > alpha {
+				alpha = score
+			}
+		} else if entry.Flag == FlagUpperBound {
+			if score < beta {
+				beta = score
+			}
+		}
+		if alpha >= beta {
+			return score
+		}
+	}
+
+	*nodes++
+	standPat := Evaluate(game)
+	if standPat >= beta {
+		GlobalTT.Store(game.ZobristHash, 0, standPat, FlagLowerBound, engine.Move{})
+		return beta
+	}
+	if alpha < standPat {
+		alpha = standPat
+	}
+
+	moves := game.GetLegalMoves() // TODO implement game.GetLegalCapturesAndPromotions() for efficiency
+	var bestMove engine.Move
+
+	for _, move := range moves {
+		// Filter for captures and promotions
+		isCapture := game.Board.GetPiece(move.ToCol, move.ToRow) != engine.NoPiece
+
+		// Check En Passant (special capture case where target square is empty)
+		if !isCapture {
+			piece := game.Board.GetPiece(move.FromCol, move.FromRow)
+			if piece.Type() == engine.Pawn &&
+				move.ToCol == game.EnPassantTargetCol &&
+				move.ToRow == game.EnPassantTargetRow {
+				isCapture = true
+			}
+		}
+
+		isPromotion := move.PromotionPiece != engine.NoPiece
+
+		if !isCapture && !isPromotion {
+			continue
+		}
+
+		game.ExecuteMove(move)
+		score := -quiescence(game, -beta, -alpha, nodes)
+		game.UnmakeMove()
+
+		if score >= beta {
+			GlobalTT.Store(game.ZobristHash, 0, score, FlagLowerBound, move)
+			return beta
+		}
+		if score > alpha {
+			alpha = score
+			bestMove = move
+		}
+	}
+
+	// 2. Store in Transposition Table
+	flag := FlagUpperBound
+	if alpha > alphaOrig {
+		flag = FlagExact
+	}
+	GlobalTT.Store(game.ZobristHash, 0, alpha, flag, bestMove)
+
+	return alpha
 }

@@ -93,7 +93,7 @@ func (u *Protocol) handleUCI() error {
 	if err := u.writeLine("id author Stefan Wilfinger"); err != nil {
 		return err
 	}
-	if err := u.writeLine("option name Hash type spin default 16 min 1 max 512"); err != nil {
+	if err := u.writeLine(fmt.Sprintf("option name Hash type spin default %d min 1 max 1024", search.DefaultTTSizeMB)); err != nil {
 		return err
 	}
 	if err := u.writeLine("option name Threads type spin default 1 min 1 max 32"); err != nil {

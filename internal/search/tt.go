@@ -13,6 +13,9 @@ const (
 	FlagUpperBound               // Beta (Fail High) - True score is <= stored score
 )
 
+// DefaultTTSizeMB is the default size of the transposition table in megabytes.
+const DefaultTTSizeMB = 64
+
 // TTEntry represents a single entry in the transposition table
 type TTEntry struct {
 	Hash     uint64
@@ -32,8 +35,8 @@ type TranspositionTable struct {
 var GlobalTT *TranspositionTable
 
 func init() {
-	// Initialize with a default size (e.g., 16MB)
-	GlobalTT = NewTranspositionTable(16)
+	// Initialize with a default size
+	GlobalTT = NewTranspositionTable(DefaultTTSizeMB)
 }
 
 // NewTranspositionTable creates a new TT with the given size in MB
@@ -75,8 +78,22 @@ func (tt *TranspositionTable) Store(hash uint64, depth, score int, flag TTFlag, 
 	}
 	index := hash % tt.size
 
-	// Replacement strategy: Always replace for now.
-	tt.entries[index] = TTEntry{
+	entry := &tt.entries[index]
+
+	// If we have an entry for the same position, be careful about overwriting.
+	if entry.Hash == hash {
+		// 1. Don't overwrite deep results with shallow ones (e.g. QS overwriting Main Search)
+		if depth < entry.Depth {
+			return
+		}
+		// 2. Preserve existing best move if the new one is empty (e.g. fail-low)
+		if bestMove == (engine.Move{}) {
+			bestMove = entry.BestMove
+		}
+	}
+
+	// Replacement strategy: Always replace (if not same hash & deeper)
+	*entry = TTEntry{
 		Hash:     hash,
 		Score:    score,
 		Depth:    depth,

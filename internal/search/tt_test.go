@@ -95,3 +95,29 @@ func TestResize(t *testing.T) {
 	// 1MB -> ~13107 entries, 2MB -> ~26214 entries
 	assert.Greater(t, tt.size, uint64(20000))
 }
+
+func TestStorePreservesDeeper(t *testing.T) {
+	tt := NewTranspositionTable(1)
+	hash := uint64(0x12345)
+	deepMove := engine.NewMove(1, 1, 1, 1)
+	shallowMove := engine.NewMove(2, 2, 2, 2)
+
+	// 1. Store a deep search result (e.g. depth 5)
+	tt.Store(hash, 5, 100, FlagExact, deepMove)
+
+	// 2. Attempt to store a shallow result (e.g. depth 0 from Quiescence)
+	tt.Store(hash, 0, 105, FlagExact, shallowMove)
+
+	// 3. Verify the deep result was preserved
+	entry, found := tt.Probe(hash)
+	assert.True(t, found)
+	assert.Equal(t, 5, entry.Depth, "Should preserve deeper depth")
+	assert.Equal(t, 100, entry.Score, "Should preserve score from deeper search")
+	assert.Equal(t, deepMove, entry.BestMove, "Should preserve best move from deeper search")
+
+	// 4. Verify we CAN overwrite if depth is greater
+	tt.Store(hash, 6, 200, FlagExact, shallowMove)
+	entry, _ = tt.Probe(hash)
+	assert.Equal(t, 6, entry.Depth, "Should overwrite if new depth is greater")
+	assert.Equal(t, shallowMove, entry.BestMove)
+}

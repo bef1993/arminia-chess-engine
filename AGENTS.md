@@ -116,10 +116,12 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 
 - ✅ Search algorithm (Negamax with Alpha-Beta)
 - ✅ Basic Evaluation function (Material)
-- ❌ Fixed depth only (Depth 4)
+- ✅ Quiescence Search (fixes horizon effect)
+- ✅ Transposition Table (Zobrist Hashing)
+- ✅ Move Ordering (Hash move)
+- ❌ Fixed depth only (Depth 5)
 - ❌ No time management or iterative deepening
-- ❌ No move ordering
-- ❌ No Quiescence search
+- ❌ Advanced Move Ordering (MVV-LVA, Killer moves)
 
 ### UCI Protocol
 
@@ -239,10 +241,11 @@ func TestFeature(t *testing.T) {
 
 ### Phase 4: Advanced Features ⏳ IN PROGRESS
 
-- Quiescence search
+- ✅ Quiescence search
 - Iterative Deepening
 - Time management
 - Move ordering
+- ✅ Transposition Tables (Zobrist Hashing)
 - Opening book
 - Endgame tables
 
@@ -267,7 +270,7 @@ The basic search is working, but it plays at a fixed depth and doesn't manage ti
   - Pass a `context` or `stop` channel to the search function.
   - In `negamax`, check periodically (every 2048 nodes) if time is up.
 
-#### 3. Implement Quiescence Search (`internal/search/search.go`)
+#### 3. Implement Quiescence Search (`internal/search/search.go`) ✅ COMPLETE
 
 - **Problem:** The horizon effect (engine stops searching in the middle of a capture sequence).
 - **Logic:**
