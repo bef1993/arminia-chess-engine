@@ -2,8 +2,6 @@ package search
 
 import "arminia-chess-engine/internal/engine"
 
-
-
 // Search finds the best move for the current position.
 // This is the entry point for the search algorithm.
 func Search(game *engine.Game, depth int) (engine.Move, int) {

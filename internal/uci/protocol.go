@@ -95,6 +95,15 @@ func (u *Protocol) handleUCI() error {
 	if err := u.writeLine("option name Threads type spin default 1 min 1 max 32"); err != nil {
 		return err
 	}
+	if err := u.writeLine("option name Move Overhead type spin default 10 min 0 max 5000"); err != nil {
+		return err
+	}
+	if err := u.writeLine("option name SyzygyPath type string default <empty>"); err != nil {
+		return err
+	}
+	if err := u.writeLine("option name UCI_ShowWDL type check default false"); err != nil {
+		return err
+	}
 	return u.writeLine("uciok")
 }
 

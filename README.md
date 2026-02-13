@@ -2,6 +2,10 @@
 
 A chess engine written in Go with the goal of implementing the UCI protocol to compete against other engines on Lichess and other platforms.
 
+**Play against Arminia on Lichess:** [https://lichess.org/@/Arminia-Bot](https://lichess.org/@/Arminia-Bot)
+
+Powered by [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot).
+
 ## Project Structure
 
 ```text
@@ -118,7 +122,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 | **2** | ✅ Complete    | UCI protocol, move validation, special moves          |
 | **3** | ✅ Complete    | FEN support, Search algorithm, evaluation function    |
 | **4** | ⏳ In Progress | Advanced features (quiescence, time management, etc.) |
-| **5** | 🚫 Blocked     | Lichess integration                                   |
+| **5** | ✅ Complete    | Lichess integration (via lichess-bot)                 |
 
 For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
