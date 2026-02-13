@@ -280,12 +280,12 @@ func TestIsSquareAttackedByColor(t *testing.T) {
 			want:     true,
 		},
 		{
-			name:     "pawn controls square in front",
+			name:     "pawn does not attack square in front",
 			setupFn:  func(b *Board) { b.Clear(); b.SetPieceAt("d4", WhitePawn) },
 			col:      3,
 			row:      3,
 			attacker: White,
-			want:     true,
+			want:     false,
 		},
 		{
 			name:     "rook attacks along rank",

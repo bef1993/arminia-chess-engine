@@ -22,33 +22,46 @@ const (
 	StatusDrawInsufficientMaterial
 )
 
+// GameState captures the state of the game before a move is made, for undo purposes
+type GameState struct {
+	CastlingRights     CastlingRights
+	EnPassantTargetCol int
+	EnPassantTargetRow int
+	HalfMoveClock      int
+	CapturedPiece      Piece
+	PositionHistory    []string
+}
+
 // Game represents a chess game
 type Game struct {
-	Board              *Board
-	CurrentTurn        Color
-	MoveHistory        []Move         // Track actual Move objects
-	LastMove           *Move          // For en passant target tracking
-	EnPassantTargetCol int            // Column of en passant target (-1 if none)
-	EnPassantTargetRow int            // Row of en passant target (-1 if none)
-	CastlingRights     CastlingRights // Bitmask tracking which sides can castle
-	HalfMoveClock      int            // For 50-move rule (reset on capture or pawn move)
-	FullMoveNumber     int            // Increments after black's move
-	PositionHistory    []string       // History of position keys for repetition check
+	Board          *Board
+	CurrentTurn    Color
+	MoveHistory    []Move      // Track actual Move objects
+	LastMove       *Move       // For en passant target tracking
+	FullMoveNumber int         // Increments after black's move
+	StateHistory   []GameState // Stack of states for undoing moves
+
+	// GameState is embedded to hold the current state fields like castling rights,
+	// en passant target, half-move clock, and position history.
+	GameState
 }
 
 // NewGame creates a new chess game
 func NewGame() *Game {
 	g := &Game{
-		Board:              NewBoard(),
-		CurrentTurn:        White,
-		MoveHistory:        []Move{},
-		LastMove:           nil,
-		EnPassantTargetCol: -1,
-		EnPassantTargetRow: -1,
-		CastlingRights:     AllCastling,
-		HalfMoveClock:      0,
-		FullMoveNumber:     1,
-		PositionHistory:    []string{},
+		Board:          NewBoard(),
+		CurrentTurn:    White,
+		MoveHistory:    []Move{},
+		LastMove:       nil,
+		FullMoveNumber: 1,
+		StateHistory:   []GameState{},
+		GameState: GameState{
+			EnPassantTargetCol: -1,
+			EnPassantTargetRow: -1,
+			CastlingRights:     AllCastling,
+			HalfMoveClock:      0,
+			PositionHistory:    []string{},
+		},
 	}
 	g.PositionHistory = append(g.PositionHistory, g.GeneratePositionKey())
 	return g
@@ -134,6 +147,13 @@ func (g *Game) ExecuteMove(move Move) bool {
 	// Detect castling (King moving 2 squares horizontally)
 	isCastling := piece.Type() == King && (move.ToCol-move.FromCol == 2 || move.FromCol-move.ToCol == 2)
 
+	// Capture state before changes
+	state := g.GameState // This is a copy.
+	state.CapturedPiece = targetPiece
+	if isEnPassant {
+		state.CapturedPiece = g.Board.GetPiece(move.ToCol, move.FromRow)
+	}
+
 	// Handle en passant capture (remove attacked pawn)
 	if isEnPassant {
 		isCapture = true
@@ -210,6 +230,9 @@ func (g *Game) ExecuteMove(move Move) bool {
 		g.PositionHistory = append(g.PositionHistory, newPosKey)
 	}
 
+	// Push state to history
+	g.StateHistory = append(g.StateHistory, state)
+
 	return true
 }
 
@@ -253,6 +276,78 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 			} else if move.ToCol == FileH && move.ToRow == Rank8 {
 				g.CastlingRights &= ^BlackKingside
 			}
+		}
+	}
+}
+
+// UnmakeMove undoes the last move
+func (g *Game) UnmakeMove() {
+	if len(g.StateHistory) == 0 || len(g.MoveHistory) == 0 {
+		return
+	}
+
+	// Pop state and move
+	state := g.StateHistory[len(g.StateHistory)-1]
+	g.StateHistory = g.StateHistory[:len(g.StateHistory)-1]
+
+	move := g.MoveHistory[len(g.MoveHistory)-1]
+	g.MoveHistory = g.MoveHistory[:len(g.MoveHistory)-1]
+
+	// Restore game state fields
+	g.GameState = state
+
+	// Switch turn back
+	g.SwitchTurn()
+	if g.CurrentTurn == Black {
+		g.FullMoveNumber--
+	}
+
+	// Restore LastMove
+	if len(g.MoveHistory) > 0 {
+		lm := g.MoveHistory[len(g.MoveHistory)-1]
+		g.LastMove = &lm
+	} else {
+		g.LastMove = nil
+	}
+
+	// Restore pieces on board
+	// 1. Move the piece back from To -> From
+	// Note: The piece at ToCol, ToRow is the one that moved (or promoted piece)
+	movedPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
+	g.Board.MovePiece(move.ToCol, move.ToRow, move.FromCol, move.FromRow)
+
+	// 2. If it was a promotion, revert the piece at From to a Pawn
+	if move.PromotionPiece != NoPiece {
+		pawn := WhitePawn
+		if g.CurrentTurn == Black {
+			pawn = BlackPawn
+		}
+		g.Board.SetPiece(move.FromCol, move.FromRow, pawn)
+		movedPiece = pawn // Update for En Passant check below
+	}
+
+	// 3. Restore captured piece
+	if state.CapturedPiece != NoPiece {
+		// Check if it was En Passant
+		if movedPiece.Type() == Pawn && move.ToCol == g.EnPassantTargetCol && move.ToRow == g.EnPassantTargetRow {
+			// En Passant capture: restore pawn at (ToCol, FromRow)
+			g.Board.SetPiece(move.ToCol, move.FromRow, state.CapturedPiece)
+		} else {
+			// Normal capture: restore piece at ToCol, ToRow
+			g.Board.SetPiece(move.ToCol, move.ToRow, state.CapturedPiece)
+		}
+	}
+
+	// Castling undo
+	// If King moved 2 squares, move the Rook back
+	if movedPiece.Type() == King && (move.ToCol-move.FromCol == 2 || move.FromCol-move.ToCol == 2) {
+		row := move.FromRow
+		if move.ToCol > move.FromCol { // Kingside castling (e1->g1 or e8->g8)
+			// Rook moved from H to F. Move back F -> H.
+			g.Board.MovePiece(FileF, row, FileH, row)
+		} else { // Queenside castling (e1->c1 or e8->c8)
+			// Rook moved from A to D. Move back D -> A.
+			g.Board.MovePiece(FileD, row, FileA, row)
 		}
 	}
 }

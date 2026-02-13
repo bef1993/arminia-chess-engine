@@ -2,6 +2,16 @@ package search
 
 import "arminia-chess-engine/internal/engine"
 
+const (
+	// Infinity is a score that is higher than any possible evaluation.
+	// Used for alpha-beta pruning.
+	EvalInfinity = 30000
+
+	// Mate is a score indicating a checkmate. It's slightly less than infinity
+	// to allow for distinguishing between mates at different depths.
+	EvalMate = 29000
+)
+
 // Evaluate calculates the score of the current board position from the perspective
 // of the current player. A positive score means the current player has an advantage.
 func Evaluate(game *engine.Game) int {

@@ -256,31 +256,13 @@ func (u *Protocol) handleGo(args []string) error {
 	// TODO: Pass limits to search
 	move := search.Search(u.game, 4)
 
-	moveStr := fmt.Sprintf("%c%d%c%d",
-		rune('a'+move.FromCol),
-		8-move.FromRow,
-		rune('a'+move.ToCol),
-		8-move.ToRow)
-
-	// Handle promotion in output
-	if move.PromotionPiece != engine.NoPiece {
-		switch move.PromotionPiece.Type() {
-		case engine.Queen:
-			moveStr += "q"
-		case engine.Rook:
-			moveStr += "r"
-		case engine.Bishop:
-			moveStr += "b"
-		case engine.Knight:
-			moveStr += "n"
-		default:
-			slog.Warn("Unknown promotion piece type, defaulting to Queen", "type", move.PromotionPiece.Type())
-			moveStr += "q"
-		}
+	if (move == engine.Move{}) {
+		// No legal moves available (Checkmate or Stalemate)
+		return u.writeLine("bestmove (none)")
 	}
 
-	slog.Info("Best move found", "move", moveStr)
-	return u.writeLine(fmt.Sprintf("bestmove %s", moveStr))
+	slog.Info("Best move found", "move", move.String())
+	return u.writeLine(fmt.Sprintf("bestmove %s", move.String()))
 }
 
 // writeLine writes a line to output
