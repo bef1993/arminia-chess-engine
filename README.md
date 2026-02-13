@@ -4,7 +4,7 @@ A chess engine written in Go with the goal of implementing the UCI protocol to c
 
 ## Project Structure
 
-```
+```text
 arminia-chess-engine/
 ├── go.mod                          # Go module definition
 ├── go.sum                          # Go dependencies
@@ -60,27 +60,32 @@ The modular structure enables different use cases:
 ## Building and Running
 
 ### Prerequisites
+
 - Go 1.26 or later
 
 ### Build All
+
 ```bash
 go build -o bin/arminia-uci.exe ./cmd/uci
 go build -o bin/arminia-cli.exe ./cmd/cli
 ```
 
 ### Run UCI Mode
+
 ```bash
 # For Lichess/engine competition
 .\bin\arminia-uci.exe
 ```
 
 ### Run Interactive CLI
+
 ```bash
 # For manual testing
 .\bin\arminia-cli.exe
 ```
 
 ### Run Tests
+
 ```bash
 # Run all tests with coverage
 go test ./...
@@ -107,32 +112,34 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 
 ## Development Status
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| **1** | ✅ Complete | Board, pieces, move generation |
-| **2** | ✅ Complete | UCI protocol, move validation, special moves |
-| **3** | ✅ Complete | FEN support, Search algorithm, evaluation function |
+| Phase | Status         | Description                                           |
+| :---- | :------------- | :---------------------------------------------------- |
+| **1** | ✅ Complete    | Board, pieces, move generation                        |
+| **2** | ✅ Complete    | UCI protocol, move validation, special moves          |
+| **3** | ✅ Complete    | FEN support, Search algorithm, evaluation function    |
 | **4** | ⏳ In Progress | Advanced features (quiescence, time management, etc.) |
-| **5** | 🚫 Blocked | Lichess integration |
+| **5** | 🚫 Blocked     | Lichess integration                                   |
 
 For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
 ## Next Steps
 
 **High Priority (Phase 4 - Advanced Search):**
+
 - [ ] Iterative Deepening & Time Management
 - [ ] Quiescence Search
 - [ ] Heuristic Move Ordering
 - [ ] Transposition Tables (with Zobrist Hashing)
 
 **Future Improvements (Phase 5+):**
+
 - [ ] Bitboard Representation
 - [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 
-Reference: https://lichess.org/api#tag/Bot
+Reference: <https://lichess.org/api#tag/Bot>
 
 ## Performance Goals
 
@@ -144,6 +151,7 @@ Reference: https://lichess.org/api#tag/Bot
 ## Testing
 
 The engine includes comprehensive unit tests:
+
 ```bash
 # Run all tests with verbose output
 go test ./engine -v
