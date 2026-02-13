@@ -137,21 +137,59 @@ func (b *Board) FindKing(color Color) (int, int) {
 
 // IsSquareAttackedByColor checks if a square can be attacked by any piece of the attacker color
 func (b *Board) IsSquareAttackedByColor(col, row int, attacker Color) bool {
-	mg := NewMoveGenerator(b)
+	// Check for pawn attacks
+	pawnCheckRow := row - 1 // If attacker is Black, check for pawns on row-1
+	if attacker == White {
+		pawnCheckRow = row + 1 // If attacker is White, check for pawns on row+1
+	}
+	if pawnCheckRow >= 0 && pawnCheckRow < 8 {
+		if col > 0 {
+			p := b.GetPiece(col-1, pawnCheckRow)
+			if p.Type() == Pawn && p.Color() == attacker {
+				return true
+			}
+		}
+		if col < 7 {
+			p := b.GetPiece(col+1, pawnCheckRow)
+			if p.Type() == Pawn && p.Color() == attacker {
+				return true
+			}
+		}
+	}
 
-	for attackerRow := 0; attackerRow < 8; attackerRow++ {
-		for attackerCol := 0; attackerCol < 8; attackerCol++ {
-			piece := b.GetPiece(attackerCol, attackerRow)
-			if piece != NoPiece && piece.Color() == attacker {
-				// Generate all moves for this attacking piece
-				moves := mg.GenerateMovesForPiece(attackerCol, attackerRow)
+	// Check for knight attacks
+	knightMoves := [][2]int{{-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}}
+	for _, move := range knightMoves {
+		checkRow := row + move[0]
+		checkCol := col + move[1]
+		if checkRow >= 0 && checkRow < 8 && checkCol >= 0 && checkCol < 8 {
+			p := b.GetPiece(checkCol, checkRow)
+			if p.Type() == Knight && p.Color() == attacker {
+				return true
+			}
+		}
+	}
 
-				// Check if any of these moves can reach the target square
-				for _, move := range moves {
-					if move.ToCol == col && move.ToRow == row {
+	// Check for sliding pieces (Rook, Bishop, Queen) and King attacks
+	directions := [][2]int{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+	for i, dir := range directions {
+		for dist := 1; dist < 8; dist++ {
+			checkRow := row + dist*dir[0]
+			checkCol := col + dist*dir[1]
+			if checkRow < 0 || checkRow >= 8 || checkCol < 0 || checkCol >= 8 {
+				break // Off board
+			}
+			p := b.GetPiece(checkCol, checkRow)
+			if p != NoPiece {
+				if p.Color() == attacker {
+					pt := p.Type()
+					isDiagonal := i < 4
+					isStraight := i >= 4
+					if pt == Queen || (pt == Bishop && isDiagonal) || (pt == Rook && isStraight) || (pt == King && dist == 1) {
 						return true
 					}
 				}
+				break // Blocked by a piece
 			}
 		}
 	}

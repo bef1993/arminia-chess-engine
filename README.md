@@ -24,6 +24,11 @@ arminia-chess-engine/
 │   │   ├── moves.go                # Move generation for all pieces
 │   │   └── *_test.go               # Comprehensive unit tests (60+)
 │   │
+│   ├── search/                     # Search & Evaluation
+│   │   ├── search.go               # Negamax algorithm
+│   │   ├── eval.go                 # Evaluation function
+│   │   └── *_test.go               # Search tests
+│   │
 │   └── uci/                        # UCI protocol implementation
 │       ├── protocol.go             # UCI command handler
 │       └── protocol_test.go        # UCI protocol tests
@@ -106,18 +111,24 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 |-------|--------|-------------|
 | **1** | ✅ Complete | Board, pieces, move generation |
 | **2** | ✅ Complete | UCI protocol, move validation, special moves |
-| **3** | ⏳ In Progress | FEN support, Search algorithm, evaluation function |
-| **4** | 🚫 Blocked | Advanced features (quiescence, opening book, etc.) |
+| **3** | ✅ Complete | FEN support, Search algorithm, evaluation function |
+| **4** | ⏳ In Progress | Advanced features (quiescence, time management, etc.) |
 | **5** | 🚫 Blocked | Lichess integration |
 
 For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
 ## Next Steps
 
-**High Priority (Phase 3):**
-- [x] FEN position support
-- [ ] Evaluation function (Perspective-based)
-- [ ] Search algorithm (Negamax with Alpha-Beta pruning)
+**High Priority (Phase 4 - Advanced Search):**
+- [ ] Iterative Deepening & Time Management
+- [ ] Quiescence Search
+- [ ] Heuristic Move Ordering
+- [ ] Transposition Tables (with Zobrist Hashing)
+
+**Future Improvements (Phase 5+):**
+- [ ] Bitboard Representation
+- [ ] Advanced Parallel Search (Lazy SMP)
+- [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 

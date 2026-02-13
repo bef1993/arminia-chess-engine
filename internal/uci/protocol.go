@@ -2,6 +2,7 @@ package uci
 
 import (
 	"arminia-chess-engine/internal/engine"
+	"arminia-chess-engine/internal/search"
 	"bufio"
 	"fmt"
 	"io"
@@ -251,41 +252,17 @@ func (u *Protocol) handleGo(args []string) error {
 
 	slog.Info("Search started", "limits", limits)
 
-	// For now, just return a random legal move
-	moves := u.game.GetLegalMoves()
+	// Call the search package
+	// TODO: Pass limits to search
+	move, _ := search.Search(u.game, 4)
 
-	if len(moves) == 0 {
-		slog.Info("No legal moves found")
-		return u.writeLine("bestmove 0000")
+	if (move == engine.Move{}) {
+		// No legal moves available (Checkmate or Stalemate)
+		return u.writeLine("bestmove (none)")
 	}
 
-	// Select first legal move for now (TODO: implement proper search)
-	move := moves[0]
-	moveStr := fmt.Sprintf("%c%d%c%d",
-		rune('a'+move.FromCol),
-		8-move.FromRow,
-		rune('a'+move.ToCol),
-		8-move.ToRow)
-
-	// Handle promotion in output
-	if move.PromotionPiece != engine.NoPiece {
-		switch move.PromotionPiece.Type() {
-		case engine.Queen:
-			moveStr += "q"
-		case engine.Rook:
-			moveStr += "r"
-		case engine.Bishop:
-			moveStr += "b"
-		case engine.Knight:
-			moveStr += "n"
-		default:
-			slog.Warn("Unknown promotion piece type, defaulting to Queen", "type", move.PromotionPiece.Type())
-			moveStr += "q"
-		}
-	}
-
-	slog.Info("Best move found", "move", moveStr)
-	return u.writeLine(fmt.Sprintf("bestmove %s", moveStr))
+	slog.Info("Best move found", "move", move.String())
+	return u.writeLine(fmt.Sprintf("bestmove %s", move.String()))
 }
 
 // writeLine writes a line to output

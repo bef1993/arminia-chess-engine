@@ -35,6 +35,29 @@ func NewPromotionMove(fromCol, fromRow, toCol, toRow int, promotionPiece Piece) 
 	}
 }
 
+// String returns the UCI representation of the move.
+func (m Move) String() string {
+	moveStr := fmt.Sprintf("%c%d%c%d",
+		rune('a'+m.FromCol),
+		8-m.FromRow,
+		rune('a'+m.ToCol),
+		8-m.ToRow)
+
+	if m.PromotionPiece != NoPiece {
+		switch m.PromotionPiece.Type() {
+		case Queen:
+			moveStr += "q"
+		case Rook:
+			moveStr += "r"
+		case Bishop:
+			moveStr += "b"
+		case Knight:
+			moveStr += "n"
+		}
+	}
+	return moveStr
+}
+
 // ParseMove parses a UCI move string (e.g., "e2e4", "a7a8q") into a Move struct.
 // It validates the move against the current game state (legal moves).
 func ParseMove(moveStr string, game *Game) (Move, error) {
