@@ -72,3 +72,17 @@ func TestSearchFindsMateInTwo(t *testing.T) {
 	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
 	assertMateScore(t, score)
 }
+
+func TestSearchFindsMateInThreeWithEnPassant(t *testing.T) {
+	game := engine.NewGame()
+	// Unique mate in 3 moves involving en passant
+	fen := "rn3k1r/pp2p2p/3pQ1pn/1BpP2N1/5P2/3K4/P1PB2qP/8 w - - 2 17"
+	err := game.LoadFEN(fen)
+	assert.NoError(t, err)
+
+	move, score := Search(game, 6)
+
+	// Expected move: e6c8
+	assert.Equal(t, "e6c8", move.String(), "Should find mate in 3 with en passant")
+	assertMateScore(t, score)
+}
