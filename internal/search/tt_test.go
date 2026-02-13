@@ -1,0 +1,97 @@
+package search
+
+import (
+	"arminia-chess-engine/internal/engine"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNewTranspositionTable(t *testing.T) {
+	// 1 MB
+	tt := NewTranspositionTable(1)
+	assert.NotNil(t, tt)
+	assert.Greater(t, tt.size, uint64(0))
+	assert.Equal(t, int(tt.size), len(tt.entries))
+}
+
+func TestStoreAndProbe(t *testing.T) {
+	tt := NewTranspositionTable(1)
+	hash := uint64(0x123456789ABC)
+	move := engine.NewMove(1, 1, 1, 3) // b2-b4
+	depth := 5
+	score := 150
+	flag := FlagExact
+
+	tt.Store(hash, depth, score, flag, move)
+
+	entry, found := tt.Probe(hash)
+	assert.True(t, found)
+	assert.Equal(t, hash, entry.Hash)
+	assert.Equal(t, depth, entry.Depth)
+	assert.Equal(t, score, entry.Score)
+	assert.Equal(t, flag, entry.Flag)
+	assert.Equal(t, move, entry.BestMove)
+}
+
+func TestProbeMiss(t *testing.T) {
+	tt := NewTranspositionTable(1)
+	hash := uint64(0xDEADBEEF)
+
+	_, found := tt.Probe(hash)
+	assert.False(t, found)
+}
+
+func TestOverwrite(t *testing.T) {
+	// Create a TT. NewTranspositionTable has a minimum count, so we calculate a collision.
+	tt := NewTranspositionTable(1)
+
+	hash1 := uint64(10)
+	// Ensure hash2 maps to the same index as hash1
+	// index = hash % size. If hash2 = hash1 + size, then (hash1 + size) % size == hash1 % size.
+	hash2 := hash1 + tt.size
+
+	move1 := engine.NewMove(0, 0, 0, 0)
+	move2 := engine.NewMove(1, 1, 1, 1)
+
+	// Store first
+	tt.Store(hash1, 1, 100, FlagExact, move1)
+
+	// Verify it's there
+	entry, found := tt.Probe(hash1)
+	assert.True(t, found)
+	assert.Equal(t, move1, entry.BestMove)
+
+	// Store second (collision)
+	tt.Store(hash2, 2, 200, FlagLowerBound, move2)
+
+	// Verify hash1 is gone (replaced because index collision)
+	_, found = tt.Probe(hash1)
+	assert.False(t, found, "Old entry should be overwritten due to index collision")
+
+	// Verify hash2 is there
+	entry, found = tt.Probe(hash2)
+	assert.True(t, found)
+	assert.Equal(t, move2, entry.BestMove)
+}
+
+func TestResize(t *testing.T) {
+	tt := NewTranspositionTable(1)
+	hash := uint64(0xCAFEBABE)
+	tt.Store(hash, 1, 100, FlagExact, engine.Move{})
+
+	// Verify stored
+	_, found := tt.Probe(hash)
+	assert.True(t, found)
+
+	// Resize to 2MB
+	tt.Resize(2)
+
+	// Verify cleared
+	_, found = tt.Probe(hash)
+	assert.False(t, found, "Table should be cleared after resize")
+
+	// Verify size changed (approx double)
+	// 1MB -> ~13107 entries, 2MB -> ~26214 entries
+	assert.Greater(t, tt.size, uint64(20000))
+}

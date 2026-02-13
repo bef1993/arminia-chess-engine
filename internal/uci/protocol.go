@@ -115,8 +115,16 @@ func (u *Protocol) handleIsReady() error {
 // handleSetOption processes option setting (currently no-op)
 func (u *Protocol) handleSetOption(args []string) error {
 	// Parse: setoption name <id> value <x>
-	// For now, we ignore options but accept them gracefully
 	slog.Info("SetOption", "args", args)
+
+	if len(args) >= 4 && args[0] == "name" && args[1] == "Hash" && args[2] == "value" {
+		sizeMB, err := strconv.Atoi(args[3])
+		if err == nil {
+			slog.Info("Resizing Hash", "sizeMB", sizeMB)
+			search.GlobalTT.Resize(sizeMB)
+		}
+	}
+
 	return nil
 }
 

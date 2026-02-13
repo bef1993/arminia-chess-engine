@@ -98,6 +98,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 3. **Test changes** → `go test ./internal/engine -v`
 4. **Rebuild binaries** → `go build -o bin/arminia-*.exe ./cmd/...`
 5. **Manual testing** → `echo "commands" | .\bin\arminia-uci.exe`
+6. **Update Documentation** → Update `README.md` and `AGENTS.md` to reflect new features/status.
 
 ## Known Limitations & TODOs
 
@@ -236,32 +237,6 @@ func TestFeature(t *testing.T) {
 
 ## Phase Dependencies
 
-### Phase 1: Core Functionality ✅ COMPLETE
-
-- [x] Board representation
-- [x] Piece definitions
-- [x] Move generation (all pieces)
-- [x] Unit tests (60+)
-- [x] Modular package structure
-
-### Phase 2: UCI Protocol & Move Legality ✅ COMPLETE
-
-**Completed items:**
-
-- [x] Check detection (needed for legal move validation)
-- [x] Checkmate detection (needed to prevent illegal moves)
-- [x] Move validation (reject moves that leave king in check)
-- [x] FEN support (Moved to Phase 3)
-- [x] Basic UCI working with full move validation
-
-### Phase 3: Search & Evaluation ✅ COMPLETE
-
-**Completed items:**
-
-- [x] Legal move validation (from Phase 2)
-- [x] Evaluation function (Material counting)
-- [x] Minimax with alpha-beta pruning
-
 ### Phase 4: Advanced Features ⏳ IN PROGRESS
 
 - Quiescence search
@@ -270,25 +245,6 @@ func TestFeature(t *testing.T) {
 - Move ordering
 - Opening book
 - Endgame tables
-
-### Phase 5: Lichess Integration 🎯 HANDLED BY dolegi/lichess-bot
-
-**Status:** Not required for core development
-
-Instead of building custom Lichess integration, use the existing [dolegi/lichess-bot](https://github.com/dolegi/lichess-bot) project:
-
-- Handles all Lichess API communication
-- Manages bot account upgrades
-- Streams challenges and games
-- Spawns UCI engines as subprocesses
-
-**Integration**: Once your engine reaches Phase 2 (legal moves), it can be used via:
-
-```bash
-./lichess-bot config.toml
-```
-
-Where `config.toml` points to your Arminia UCI binary
 
 ## Next Steps for Agents
 
@@ -381,3 +337,4 @@ When working on a feature:
 - [ ] Manual test with binaries
 - [ ] Verify no new lint/format issues
 - [ ] Document changes in code comments
+- [ ] Update README.md and AGENTS.md (mark feature as complete, update roadmap)

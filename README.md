@@ -6,42 +6,6 @@ A chess engine written in Go with the goal of implementing the UCI protocol to c
 
 Powered by [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot).
 
-## Project Structure
-
-```text
-arminia-chess-engine/
-├── go.mod                          # Go module definition
-├── go.sum                          # Go dependencies
-├── README.md                       # This file
-│
-├── cmd/                            # Application entry points
-│   ├── uci/
-│   │   └── main.go                 # UCI mode for engine competition
-│   └── cli/
-│       └── main.go                 # Interactive CLI for manual testing
-│
-├── internal/                       # Private packages (Go visibility rules)
-│   ├── engine/                     # Core chess engine logic
-│   │   ├── piece.go                # Piece definitions (types, colors)
-│   │   ├── board.go                # Board representation & operations
-│   │   ├── game.go                 # Game state management
-│   │   ├── moves.go                # Move generation for all pieces
-│   │   └── *_test.go               # Comprehensive unit tests (60+)
-│   │
-│   ├── search/                     # Search & Evaluation
-│   │   ├── search.go               # Negamax algorithm
-│   │   ├── eval.go                 # Evaluation function
-│   │   └── *_test.go               # Search tests
-│   │
-│   └── uci/                        # UCI protocol implementation
-│       ├── protocol.go             # UCI command handler
-│       └── protocol_test.go        # UCI protocol tests
-│
-└── bin/                            # Built executables
-    ├── arminia-uci.exe             # UCI engine executable
-    └── arminia-cli.exe             # Interactive CLI executable
-```
-
 ## Multiple Entry Points
 
 The modular structure enables different use cases:
@@ -54,9 +18,9 @@ The modular structure enables different use cases:
 - **Board Representation**: Standard 8x8 chess board with piece placement
 - **Piece Types**: Pawn, Knight, Bishop, Rook, Queen, King
 - **Move Generation**: Complete legal move generation for all piece types
-- **Move Validation**: Rejects illegal moves and moves that leave king in check
+- **Move Validation**: Rejects illegal moves
 - **Special Moves**: Castling, En Passant, Pawn Promotion
-- **Game State**: Tracks current turn and move history
+- **Game State**: Tracks current turn and move history, castling rights, en passant target
 - **Draw Detection**: Stalemate, 50-move rule, Insufficient Material, Threefold Repetition
 - **Display**: ASCII board visualization with Unicode chess symbols
 - **Comprehensive Tests**: Full test coverage for board and move generation
@@ -72,13 +36,6 @@ The modular structure enables different use cases:
 ```bash
 go build -o bin/arminia-uci.exe ./cmd/uci
 go build -o bin/arminia-cli.exe ./cmd/cli
-```
-
-### Run UCI Mode
-
-```bash
-# For Lichess/engine competition
-.\bin\arminia-uci.exe
 ```
 
 ### Run Interactive CLI
@@ -126,6 +83,12 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 
 For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
+## Implemented Optimizations
+
+- **Zobrist Hashing**: Efficient board state representation for table lookups.
+- **Transposition Tables**: Caching search results to avoid redundant calculations.
+- **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
+
 ## Next Steps
 
 **High Priority (Phase 4 - Advanced Search):**
@@ -133,13 +96,14 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - [ ] Iterative Deepening & Time Management
 - [ ] Quiescence Search
 - [ ] Heuristic Move Ordering
-- [ ] Transposition Tables (with Zobrist Hashing)
 
 **Future Improvements (Phase 5+):**
 
 - [ ] Bitboard Representation
 - [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
+- [ ] Opening Books
+- [ ] Endgame Tablebases
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 

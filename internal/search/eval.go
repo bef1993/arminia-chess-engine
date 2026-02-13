@@ -10,6 +10,9 @@ const (
 	// Mate is a score indicating a checkmate. It's slightly less than infinity
 	// to allow for distinguishing between mates at different depths.
 	EvalMate = 29000
+
+	// MateBound is the threshold for considering a score a mate score
+	MateBound = EvalMate - 1000
 )
 
 // Evaluate calculates the score of the current board position from the perspective
