@@ -12,6 +12,9 @@ import (
 	"time"
 )
 
+// DefaultDepth is the fixed search depth used by the engine
+const DefaultDepth = 5
+
 // Protocol represents the UCI protocol handler
 type Protocol struct {
 	input  io.Reader
@@ -274,7 +277,7 @@ func (u *Protocol) handleGo(args []string) error {
 
 	// Call the search package
 	// TODO: Pass limits to search
-	move, score, nodes := search.Search(u.game, 4)
+	move, score, nodes := search.Search(u.game, DefaultDepth)
 
 	duration := time.Since(start)
 	ms := duration.Milliseconds()
@@ -299,8 +302,8 @@ func (u *Protocol) handleGo(args []string) error {
 	}
 
 	// Report search statistics
-	infoStr := fmt.Sprintf("info depth 4 score %s nodes %d nps %d time %d pv %s", scoreStr, nodes, nps, ms, move.String())
-	slog.Info("Search stats", "depth", 4, "score", scoreStr, "nodes", nodes, "nps", nps, "time_ms", ms, "pv", move.String())
+	infoStr := fmt.Sprintf("info depth %d score %s nodes %d nps %d time %d pv %s", DefaultDepth, scoreStr, nodes, nps, ms, move.String())
+	slog.Info("Search stats", "depth", DefaultDepth, "score", scoreStr, "nodes", nodes, "nps", nps, "time_ms", ms, "pv", move.String())
 	u.writeLine(infoStr)
 
 	slog.Info("Best move found", "move", move.String())
