@@ -254,7 +254,7 @@ func (u *Protocol) handleGo(args []string) error {
 
 	// Call the search package
 	// TODO: Pass limits to search
-	move := search.Search(u.game, 4)
+	move, _ := search.Search(u.game, 4)
 
 	if (move == engine.Move{}) {
 		// No legal moves available (Checkmate or Stalemate)

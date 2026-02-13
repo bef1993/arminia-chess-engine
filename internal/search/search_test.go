@@ -7,12 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func assertMateScore(t *testing.T, score int) {
+	t.Helper()
+	// Mate scores are close to EvalMate (29000).
+	// The score is reduced by the number of plies to mate, so we check if it's
+	// within a large margin of the base mate score to confirm it's a mate.
+	assert.Greater(t, score, EvalMate-1000, "Score %d should indicate a forced mate", score)
+}
+
 func TestSearchPlaceholder(t *testing.T) {
 	game := engine.NewGame()
 
 	// The placeholder search just returns the first legal move.
 	// Let's just ensure it returns a valid move.
-	move := Search(game, 1)
+	move, _ := Search(game, 1)
 
 	// A zero-value move would have FromCol=0, FromRow=0, etc.
 	assert.NotEqual(t, engine.Move{}, move, "Search should return a non-zero move from the starting position")
@@ -29,10 +37,11 @@ func TestSearchFindsMateInOne(t *testing.T) {
 	// Search should find the mate
 	// Depth 2 is required because depth 1 only evaluates the position (material),
 	// while depth 2 checks if the opponent has any legal moves left.
-	move := Search(game, 2)
+	move, score := Search(game, 2)
 
 	// Expected move: Qd6-e6#
 	assert.Equal(t, "d6e6", move.String(), "Should find mate d6e6")
+	assertMateScore(t, score)
 }
 
 func TestSearchFindsMateInOneBlack(t *testing.T) {
@@ -43,10 +52,11 @@ func TestSearchFindsMateInOneBlack(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move := Search(game, 2)
+	move, score := Search(game, 2)
 
 	// Expected move: Rb1-a1#
 	assert.Equal(t, "b1a1", move.String(), "Should find mate b1a1")
+	assertMateScore(t, score)
 }
 
 func TestSearchFindsMateInTwo(t *testing.T) {
@@ -56,8 +66,9 @@ func TestSearchFindsMateInTwo(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move := Search(game, 4)
+	move, score := Search(game, 4)
 
 	// Expected move: Qf4+, followed by Qxc1#
 	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
+	assertMateScore(t, score)
 }

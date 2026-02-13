@@ -106,18 +106,21 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 |-------|--------|-------------|
 | **1** | ✅ Complete | Board, pieces, move generation |
 | **2** | ✅ Complete | UCI protocol, move validation, special moves |
-| **3** | ⏳ In Progress | FEN support, Search algorithm, evaluation function |
-| **4** | 🚫 Blocked | Advanced features (quiescence, opening book, etc.) |
+| **3** | ✅ Complete | FEN support, Search algorithm, evaluation function |
+| **4** | ⏳ In Progress | Advanced features (quiescence, time management, etc.) |
 | **5** | 🚫 Blocked | Lichess integration |
 
 For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
 ## Next Steps
 
-**High Priority (Phase 3):**
+**High Priority (Phase 4):**
 - [x] FEN position support
-- [ ] Evaluation function (Perspective-based)
-- [ ] Search algorithm (Negamax with Alpha-Beta pruning)
+ - [x] Evaluation function (Perspective-based)
+ - [x] Search algorithm (Negamax with Alpha-Beta pruning)
+ - [ ] Iterative Deepening
+ - [ ] Time Management (respect wtime/btime)
+ - [ ] Quiescence Search
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 

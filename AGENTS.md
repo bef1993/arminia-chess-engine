@@ -122,10 +122,12 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Pawn promotion logic
 
 ### Move Selection
-- Currently returns **first legal move** (not intelligent)
-- No evaluation function
-- No search algorithm (minimax, alpha-beta)
-- No move ordering
+- ✅ Search algorithm (Negamax with Alpha-Beta)
+- ✅ Basic Evaluation function (Material)
+- ❌ Fixed depth only (Depth 4)
+- ❌ No time management
+- ❌ No move ordering
+- ❌ No Quiescence search
 
 ### UCI Protocol
 - ✅ Basic command parsing
@@ -250,20 +252,20 @@ func TestFeature(t *testing.T) {
 
 **Current status:** 
 - Basic UCI working with full move validation
-- Returns first legal move (needs intelligent selection for next phase)
 
-### Phase 3: Search & Evaluation ⏳ IN PROGRESS
-Requires:
-- Legal move validation (from Phase 2)
-- Evaluation function (piece values, position scoring)
-- Minimax with alpha-beta pruning
-- Move ordering
+### Phase 3: Search & Evaluation ✅ COMPLETE
+**Completed items:**
+- [x] Legal move validation (from Phase 2)
+- [x] Evaluation function (Material counting)
+- [x] Minimax with alpha-beta pruning
 
-### Phase 4: Advanced Features 🚫 BLOCKED ON PHASE 3
+### Phase 4: Advanced Features ⏳ IN PROGRESS
 - Quiescence search
+- Iterative Deepening
+- Time management
+- Move ordering
 - Opening book
 - Endgame tables
-- Time management
 
 ### Phase 5: Lichess Integration 🎯 HANDLED BY dolegi/lichess-bot
 **Status:** Not required for core development
@@ -282,33 +284,32 @@ Where `config.toml` points to your Arminia UCI binary
 
 ## Next Steps for Agents
 
-### High Priority: Search & Evaluation (Phase 3)
+### High Priority: Advanced Search & Time Management (Phase 4)
 
-The next major goal is to make the engine intelligent by implementing a search algorithm.
+The basic search is working, but it plays at a fixed depth and doesn't manage time.
 
-#### 1. Create an Evaluation Function (`internal/engine/eval.go`)
+#### 1. Implement Iterative Deepening (`internal/search/search.go`)
 
-- **Approach:** Perspective-based scoring (Side-to-move).
 - **Logic:**
-    - A positive score always means the **current side to move** is winning.
-    - Calculate material difference: `diff = WhiteMaterial - BlackMaterial`.
-    - If `game.CurrentTurn == White`, return `diff`.
-    - If `game.CurrentTurn == Black`, return `-diff`.
-    - This allows the use of the **Negamax** algorithm, simplifying the search code.
+    - Instead of calling `negamax(depth)`, call it in a loop: depth 1, 2, 3...
+    - This allows the engine to always have a "best move" ready if time runs out.
+    - It also helps with move ordering (best move from depth d-1 is searched first at depth d).
 
-#### 2. Implement Search (`internal/engine/search.go`)
+#### 2. Implement Time Management (`internal/uci/protocol.go` & `internal/search/`)
 
-- **Algorithm:** Negamax (variant of Minimax).
 - **Logic:**
-    - Recursive function `Search(game, depth, alpha, beta)`.
-    - Because of perspective scoring, you simply maximize the score for the current player.
-    - Recursive call: `score = -Search(child, depth-1, -beta, -alpha)`.
+    - Calculate allocated time for the move based on `wtime`, `btime`, `winc`, `binc`.
+    - Standard formula: `Time = (TimeLeft / MovesToGo) + Increment`. Default MovesToGo ~ 40.
+    - Pass a `context` or `stop` channel to the search function.
+    - In `negamax`, check periodically (every 2048 nodes) if time is up.
 
-#### 3. Integrate into UCI (`internal/uci/protocol.go`)
+#### 3. Implement Quiescence Search (`internal/search/search.go`)
 
-- Modify `handleGo` to call the search function.
-- **Important:** The UCI protocol expects absolute scores (White advantage is positive).
-- If the engine uses perspective scoring internally, flip the sign for Black before printing `info score cp <x>`.
+- **Problem:** The horizon effect (engine stops searching in the middle of a capture sequence).
+- **Logic:**
+    - At depth 0, instead of calling `Evaluate()`, call `Quiescence()`.
+    - `Quiescence` only searches captures (and maybe checks).
+    - It uses a "standing pat" score (evaluation of current position) as a lower bound.
 
 ### Testing Requirements
 - Every new feature must have corresponding unit tests

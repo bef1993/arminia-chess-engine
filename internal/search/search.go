@@ -6,11 +6,10 @@ import "arminia-chess-engine/internal/engine"
 
 // Search finds the best move for the current position.
 // This is the entry point for the search algorithm.
-func Search(game *engine.Game, depth int) engine.Move {
+func Search(game *engine.Game, depth int) (engine.Move, int) {
 	// We call negamax directly. It returns the best score and the best move.
-	// We discard the score here as we only need the move for the UCI protocol.
-	_, bestMove := negamax(game, depth, -EvalInfinity, EvalInfinity, 0)
-	return bestMove
+	eval, bestMove := negamax(game, depth, -EvalInfinity, EvalInfinity, 0)
+	return bestMove, eval
 }
 
 // negamax implements the Negamax algorithm with alpha-beta pruning.
