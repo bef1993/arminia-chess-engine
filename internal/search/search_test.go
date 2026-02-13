@@ -2,7 +2,9 @@ package search
 
 import (
 	"arminia-chess-engine/internal/engine"
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -20,7 +22,7 @@ func TestSearchPlaceholder(t *testing.T) {
 
 	// The placeholder search just returns the first legal move.
 	// Let's just ensure it returns a valid move.
-	move, _, _ := Search(game, 1, nil)
+	move, _, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 1}, nil)
 
 	// A zero-value move would have FromCol=0, FromRow=0, etc.
 	assert.NotEqual(t, engine.Move{}, move, "Search should return a non-zero move from the starting position")
@@ -37,7 +39,7 @@ func TestSearchFindsMateInOne(t *testing.T) {
 	// Search should find the mate
 	// Depth 2 is required because depth 1 only evaluates the position (material),
 	// while depth 2 checks if the opponent has any legal moves left.
-	move, score, _ := Search(game, 2, nil)
+	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 2}, nil)
 
 	// Expected move: Qd6-e6#
 	assert.Equal(t, "d6e6", move.String(), "Should find mate d6e6")
@@ -52,7 +54,7 @@ func TestSearchFindsMateInOneBlack(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move, score, _ := Search(game, 2, nil)
+	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 2}, nil)
 
 	// Expected move: Rb1-a1#
 	assert.Equal(t, "b1a1", move.String(), "Should find mate b1a1")
@@ -66,7 +68,7 @@ func TestSearchFindsMateInTwo(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move, score, _ := Search(game, 4, nil)
+	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 4}, nil)
 
 	// Expected move: Qf4+, followed by Qxc1#
 	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
@@ -80,7 +82,7 @@ func TestSearchFindsMateInThreeWithEnPassant(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move, score, _ := Search(game, 6, nil)
+	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 6}, nil)
 
 	// Expected move: e6c8
 	assert.Equal(t, "e6c8", move.String(), "Should find mate in 3 with en passant")
@@ -101,11 +103,11 @@ func TestTTIntegration_ReducesNodeCount(t *testing.T) {
 
 	// 1. First Search (Cold TT)
 	depth := 4
-	move1, score1, nodes1 := Search(game, depth, nil)
+	move1, score1, nodes1 := Search(context.Background(), game, SearchOptions{MaxDepth: depth}, nil)
 
 	// 2. Second Search (Warm TT)
 	// We expect the search to find the entry in the TT and return immediately or prune heavily
-	move2, score2, nodes2 := Search(game, depth, nil)
+	move2, score2, nodes2 := Search(context.Background(), game, SearchOptions{MaxDepth: depth}, nil)
 
 	// Assertions
 	assert.Equal(t, move1, move2, "Best move should be consistent")
@@ -140,7 +142,7 @@ func TestQuiescence_AvoidsBadCapture(t *testing.T) {
 	// Search at depth 1.
 	// Without QS, negamax sees Qxd8 -> +6 (Q vs N) because it doesn't see the recapture.
 	// With QS, negamax sees Qxd8 -> -3 (N vs nothing) because it sees Nxd8.
-	move, _, _ := Search(game, 1, nil)
+	move, _, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 1}, nil)
 
 	assert.NotEqual(t, "d1d8", move.String(), "Quiescence search should avoid bad capture d1d8")
 }
@@ -162,7 +164,7 @@ func TestQuiescence_IncludesEnPassant(t *testing.T) {
 	// Evaluate at root should be 0 (equal material).
 	// Quiescence should find exd6 e.p. which wins a pawn.
 	nodes := 0
-	score := quiescence(game, -EvalInfinity, EvalInfinity, &nodes)
+	score, _ := quiescence(context.Background(), game, -EvalInfinity, EvalInfinity, 0, &nodes)
 
 	// Score should reflect winning a pawn (~100)
 	// We use 50 as a safe lower bound for a pawn advantage
@@ -174,13 +176,21 @@ func TestIterativeDeepening_Callback(t *testing.T) {
 	maxDepth := 3
 	reportedDepths := []int{}
 
-	callback := func(depth, score, nodes int, bestMove engine.Move) {
-		reportedDepths = append(reportedDepths, depth)
-		assert.Greater(t, nodes, 0, "Nodes should be > 0")
-		assert.NotEqual(t, engine.Move{}, bestMove, "Best move should be valid")
-	}
+	infoCh := make(chan SearchInfo, 10)
+	done := make(chan struct{})
 
-	move, _, nodes := Search(game, maxDepth, callback)
+	go func() {
+		defer close(done)
+		for info := range infoCh {
+			reportedDepths = append(reportedDepths, info.Depth)
+			assert.Greater(t, info.Nodes, 0, "Nodes should be > 0")
+			assert.NotEqual(t, engine.Move{}, info.BestMove, "Best move should be valid")
+		}
+	}()
+
+	move, _, nodes := Search(context.Background(), game, SearchOptions{MaxDepth: maxDepth}, infoCh)
+	close(infoCh)
+	<-done
 
 	assert.NotEqual(t, engine.Move{}, move)
 	assert.Greater(t, nodes, 0)
@@ -194,13 +204,60 @@ func TestIterativeDeepening_NodeAccumulation(t *testing.T) {
 	maxDepth := 3
 
 	var lastNodes int
-	callback := func(depth, score, nodes int, bestMove engine.Move) {
-		if depth > 1 {
-			assert.Greater(t, nodes, lastNodes, "Total nodes should increase with depth")
-		}
-		lastNodes = nodes
-	}
+	infoCh := make(chan SearchInfo, 10)
+	done := make(chan struct{})
 
-	_, _, totalNodes := Search(game, maxDepth, callback)
+	go func() {
+		defer close(done)
+		for info := range infoCh {
+			if info.Depth > 1 {
+				assert.Greater(t, info.Nodes, lastNodes, "Total nodes should increase with depth")
+			}
+			lastNodes = info.Nodes
+		}
+	}()
+
+	_, _, totalNodes := Search(context.Background(), game, SearchOptions{MaxDepth: maxDepth}, infoCh)
+	close(infoCh)
+	<-done
+
 	assert.Equal(t, lastNodes, totalNodes, "Final returned nodes should match last callback nodes")
+}
+
+func TestSearch_RespectsTimeout(t *testing.T) {
+	game := engine.NewGame()
+	// Use a complex position to ensure it doesn't finish depth 20 instantly
+	game.LoadFEN("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
+
+	// Set a short timeout
+	duration := 50 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	start := time.Now()
+	// Request a deep search that definitely takes longer than 50ms
+	options := SearchOptions{MaxDepth: 20}
+
+	move, _, _ := Search(ctx, game, options, nil)
+	elapsed := time.Since(start)
+
+	assert.NotEqual(t, engine.Move{}, move, "Should return a valid move even on timeout")
+	// Allow some overhead for node checking interval
+	assert.Less(t, elapsed, 500*time.Millisecond, "Search should stop near the timeout")
+}
+
+func TestSearch_RespectsCancellation(t *testing.T) {
+	game := engine.NewGame()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Cancel immediately to test quick return
+	cancel()
+
+	start := time.Now()
+	options := SearchOptions{MaxDepth: 20}
+	move, _, _ := Search(ctx, game, options, nil)
+	elapsed := time.Since(start)
+
+	assert.NotEqual(t, engine.Move{}, move, "Should return a valid move")
+	assert.Less(t, elapsed, 50*time.Millisecond, "Search should stop immediately after cancellation")
 }

@@ -119,8 +119,8 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Quiescence Search (fixes horizon effect)
 - ✅ Transposition Table (Zobrist Hashing)
 - ✅ Move Ordering (Hash move)
-- ❌ Fixed depth only (Depth 5)
-- ❌ No time management or iterative deepening
+- ✅ Iterative Deepening
+- ✅ Basic Time Management
 - ❌ Advanced Move Ordering (MVV-LVA, Killer moves)
 
 ### UCI Protocol
@@ -130,7 +130,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Move execution via UCI
 - ✅ FEN support
 - ✅ Move validation (rejects illegal moves)
-- ❌ No time management
+- ✅ Time management (basic)
 
 ### Board State
 
@@ -242,8 +242,8 @@ func TestFeature(t *testing.T) {
 ### Phase 4: Advanced Features ⏳ IN PROGRESS
 
 - ✅ Quiescence search
-- Iterative Deepening
-- Time management
+- ✅ Iterative Deepening
+- ✅ Time management
 - Move ordering
 - ✅ Transposition Tables (Zobrist Hashing)
 - Opening book
@@ -251,18 +251,18 @@ func TestFeature(t *testing.T) {
 
 ## Next Steps for Agents
 
-### High Priority: Advanced Search & Time Management (Phase 4)
+### High Priority: Heuristic Move Ordering (Phase 4)
 
-The basic search is working, but it plays at a fixed depth and doesn't manage time.
+The search now supports iterative deepening and time management. The next step is to improve move ordering to increase pruning efficiency.
 
-#### 1. Implement Iterative Deepening (`internal/search/search.go`)
+#### 1. Implement Iterative Deepening (`internal/search/search.go`) ✅ COMPLETE
 
 - **Logic:**
   - Instead of calling `negamax(depth)`, call it in a loop: depth 1, 2, 3...
   - This allows the engine to always have a "best move" ready if time runs out.
   - It also helps with move ordering (best move from depth d-1 is searched first at depth d).
 
-#### 2. Implement Time Management (`internal/uci/protocol.go` & `internal/search/`)
+#### 2. Implement Time Management (`internal/uci/protocol.go` & `internal/search/`) ✅ COMPLETE
 
 - **Logic:**
   - Calculate allocated time for the move based on `wtime`, `btime`, `winc`, `binc`.

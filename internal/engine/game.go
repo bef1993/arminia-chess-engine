@@ -608,6 +608,62 @@ func (g *Game) GetLegalMoves() []Move {
 	return legalMoves
 }
 
+// GetNoisyMoves returns all legal capture and promotion moves for the current turn.
+// This is optimized for Quiescence Search to avoid validating quiet moves.
+func (g *Game) GetNoisyMoves() []Move {
+	var noisyMoves []Move
+	// Use the full generator with game state (Castling, En Passant)
+	mg := NewMoveGeneratorFull(g.Board, g.EnPassantTargetCol, g.EnPassantTargetRow, g.CastlingRights)
+
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			piece := g.Board.GetPiece(col, row)
+			if piece != NoPiece && piece.Color() == g.CurrentTurn {
+				moves := mg.GenerateMovesForPiece(col, row)
+
+				for _, move := range moves {
+					// Filter: Only keep Captures and Promotions
+					targetPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
+					isCapture := targetPiece != NoPiece
+					isPromotion := move.PromotionPiece != NoPiece
+
+					// Check En Passant (special capture case)
+					isEnPassant := piece.Type() == Pawn && move.ToCol == g.EnPassantTargetCol && move.ToRow == g.EnPassantTargetRow && move.ToCol != move.FromCol
+					if isEnPassant {
+						isCapture = true
+					}
+
+					if !isCapture && !isPromotion {
+						continue
+					}
+
+					// Simulate the move to check legality (King safety)
+					var epCapturedPiece Piece
+					if isEnPassant {
+						epCapturedPiece = g.Board.GetPiece(move.ToCol, move.FromRow)
+						g.Board.SetPiece(move.ToCol, move.FromRow, NoPiece)
+					}
+
+					g.Board.MovePiece(move.FromCol, move.FromRow, move.ToCol, move.ToRow)
+
+					if !g.Board.IsKingInCheck(g.CurrentTurn) {
+						noisyMoves = append(noisyMoves, move)
+					}
+
+					// Undo the move
+					g.Board.SetPiece(move.FromCol, move.FromRow, piece)
+					g.Board.SetPiece(move.ToCol, move.ToRow, targetPiece)
+
+					if isEnPassant {
+						g.Board.SetPiece(move.ToCol, move.FromRow, epCapturedPiece)
+					}
+				}
+			}
+		}
+	}
+	return noisyMoves
+}
+
 // LoadFEN loads a game state from a FEN string
 func (g *Game) LoadFEN(fen string) error {
 	parts := strings.Fields(fen)

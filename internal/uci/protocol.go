@@ -4,22 +4,23 @@ import (
 	"arminia-chess-engine/internal/engine"
 	"arminia-chess-engine/internal/search"
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-// DefaultDepth is the fixed search depth used by the engine
-const DefaultDepth = 5
-
 // Protocol represents the UCI protocol handler
 type Protocol struct {
-	input  io.Reader
-	output io.Writer
-	game   *engine.Game
+	input        io.Reader
+	output       io.Writer
+	game         *engine.Game
+	cancelSearch context.CancelFunc
+	searchWg     sync.WaitGroup
 }
 
 // NewProtocol creates a new UCI protocol handler
@@ -77,7 +78,13 @@ func (u *Protocol) handleCommand(line string) error {
 		return u.handlePosition(parts[1:])
 	case "go":
 		return u.handleGo(parts[1:])
+	case "stop":
+		return u.handleStop()
 	case "quit":
+		if u.cancelSearch != nil {
+			u.cancelSearch()
+		}
+		u.searchWg.Wait()
 		return io.EOF // Signal to exit
 	default:
 		slog.Warn("Unknown command", "command", command)
@@ -93,22 +100,28 @@ func (u *Protocol) handleUCI() error {
 	if err := u.writeLine("id author Stefan Wilfinger"); err != nil {
 		return err
 	}
-	if err := u.writeLine(fmt.Sprintf("option name Hash type spin default %d min 1 max 1024", search.DefaultTTSizeMB)); err != nil {
-		return err
-	}
-	if err := u.writeLine("option name Threads type spin default 1 min 1 max 32"); err != nil {
-		return err
-	}
-	if err := u.writeLine("option name Move Overhead type spin default 10 min 0 max 5000"); err != nil {
-		return err
-	}
-	if err := u.writeLine("option name SyzygyPath type string default <empty>"); err != nil {
-		return err
-	}
-	if err := u.writeLine("option name UCI_ShowWDL type check default false"); err != nil {
+	if err := u.sendUCIOptions(); err != nil {
 		return err
 	}
 	return u.writeLine("uciok")
+}
+
+// sendUCIOptions sends available UCI options
+func (u *Protocol) sendUCIOptions() error {
+	options := []string{
+		fmt.Sprintf("option name Hash type spin default %d min 1 max 1024", search.DefaultTTSizeMB),
+		"option name Threads type spin default 1 min 1 max 32",
+		"option name Move Overhead type spin default 10 min 0 max 5000",
+		"option name SyzygyPath type string default <empty>",
+		"option name UCI_ShowWDL type check default false",
+	}
+
+	for _, opt := range options {
+		if err := u.writeLine(opt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // handleIsReady responds when ready
@@ -134,13 +147,17 @@ func (u *Protocol) handleSetOption(args []string) error {
 
 // handleUCINewGame resets for a new game
 func (u *Protocol) handleUCINewGame() error {
+	u.ensureSearchStopped()
 	slog.Info("New Game")
+	search.GlobalTT.Clear()
 	u.game = engine.NewGame()
 	return nil
 }
 
 // handlePosition sets the board position
 func (u *Protocol) handlePosition(args []string) error {
+	u.ensureSearchStopped()
+
 	if len(args) == 0 {
 		return u.writeLine("info string position command requires arguments")
 	}
@@ -214,11 +231,49 @@ type SearchLimits struct {
 	Infinite       bool
 }
 
+// handleStop stops the current search
+func (u *Protocol) handleStop() error {
+	if u.cancelSearch != nil {
+		u.cancelSearch()
+	}
+	return nil
+}
+
+// ensureSearchStopped cancels the current search and waits for it to finish
+func (u *Protocol) ensureSearchStopped() {
+	if u.cancelSearch != nil {
+		u.cancelSearch()
+	}
+	u.searchWg.Wait()
+}
+
 // handleGo starts search for best move
 func (u *Protocol) handleGo(args []string) error {
-	limits := SearchLimits{}
+	limits := parseSearchLimits(args)
 
-	// Parse arguments
+	slog.Info("Search started", "limits", limits)
+
+	// Ensure previous search is stopped before starting a new one
+	u.ensureSearchStopped()
+
+	// Determine search options
+	options := search.SearchOptions{
+		MaxDepth: limits.Depth,
+	}
+
+	// If no depth specified, use a high default (effectively infinite with time limit)
+	if options.MaxDepth == 0 {
+		options.MaxDepth = 100
+	}
+
+	duration := u.calculateTimeLimit(limits)
+
+	return u.runSearch(options, duration)
+}
+
+// parseSearchLimits parses the arguments for the go command
+func parseSearchLimits(args []string) SearchLimits {
+	limits := SearchLimits{}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "wtime":
@@ -270,45 +325,113 @@ func (u *Protocol) handleGo(args []string) error {
 			limits.Infinite = true
 		}
 	}
+	return limits
+}
 
-	slog.Info("Search started", "limits", limits)
-
-	start := time.Now()
-
-	// Callback to report search progress
-	onInfo := func(depth, score, nodes int, bestMove engine.Move) {
-		duration := time.Since(start)
-		ms := duration.Milliseconds()
-		nps := 0
-		if duration.Seconds() > 0 {
-			nps = int(float64(nodes) / duration.Seconds())
-		}
-
-		// Format score (cp or mate)
-		scoreStr := fmt.Sprintf("cp %d", score)
-		if score > search.MateBound {
-			movesToMate := (search.EvalMate - score + 1) / 2
-			scoreStr = fmt.Sprintf("mate %d", movesToMate)
-		} else if score < -search.MateBound {
-			movesToMate := -(search.EvalMate + score + 1) / 2
-			scoreStr = fmt.Sprintf("mate %d", movesToMate)
-		}
-
-		infoStr := fmt.Sprintf("info depth %d score %s nodes %d nps %d time %d pv %s", depth, scoreStr, nodes, nps, ms, bestMove.String())
-		u.writeLine(infoStr)
+// calculateTimeLimit determines the time duration for the search
+func (u *Protocol) calculateTimeLimit(limits SearchLimits) time.Duration {
+	if limits.MoveTime > 0 {
+		return time.Duration(limits.MoveTime) * time.Millisecond
+	}
+	if limits.Infinite {
+		return 0
 	}
 
-	// Call the search package
-	// TODO: Pass limits to search
-	move, _, _ := search.Search(u.game, DefaultDepth, onInfo)
-
-	if (move == engine.Move{}) {
-		// No legal moves available (Checkmate or Stalemate)
-		return u.writeLine("bestmove (none)")
+	var timeAvailable, increment int
+	if u.game.CurrentTurn == engine.White {
+		timeAvailable = limits.WhiteTime
+		increment = limits.WhiteIncrement
+	} else {
+		timeAvailable = limits.BlackTime
+		increment = limits.BlackIncrement
 	}
 
-	slog.Info("Best move found", "move", move.String())
-	return u.writeLine(fmt.Sprintf("bestmove %s", move.String()))
+	if timeAvailable > 0 {
+		// Strategy: Use 1/20th of remaining time + increment/2
+		// This is a simple but effective strategy for blitz/rapid
+		movesToGo := 20
+		if limits.MovesToGo > 0 {
+			movesToGo = limits.MovesToGo
+		}
+		return time.Duration(timeAvailable/movesToGo+increment/2) * time.Millisecond
+	}
+
+	return 0
+}
+
+// runSearch executes the search in a separate goroutine
+func (u *Protocol) runSearch(options search.SearchOptions, duration time.Duration) error {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if duration > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), duration)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+	u.cancelSearch = cancel
+
+	// Channel for search updates
+	// Buffer slightly to prevent search from blocking on I/O
+	infoCh := make(chan search.SearchInfo, 32)
+	consumerDone := make(chan struct{})
+
+	// Goroutine 1: Consumer (UCI Output)
+	u.searchWg.Go(func() {
+		defer close(consumerDone)
+		start := time.Now()
+		for info := range infoCh {
+			u.sendSearchInfo(info, start)
+		}
+	})
+
+	// Goroutine 2: Producer (Search Execution)
+	u.searchWg.Go(func() {
+		defer cancel() // Ensure resources are released
+
+		move, _, _ := search.Search(ctx, u.game, options, infoCh)
+		close(infoCh) // Close channel so consumer can finish
+
+		// Wait for consumer to finish printing all info lines
+		<-consumerDone
+
+		if (move == engine.Move{}) {
+			u.writeLine("bestmove (none)")
+		} else {
+			slog.Info("Best move found", "move", move.String())
+			u.writeLine(fmt.Sprintf("bestmove %s", move.String()))
+		}
+	})
+
+	return nil
+}
+
+// sendSearchInfo formats and sends search progress information
+func (u *Protocol) sendSearchInfo(info search.SearchInfo, start time.Time) {
+	elapsed := time.Since(start)
+	ms := elapsed.Milliseconds()
+	nps := 0
+	if elapsed.Seconds() > 0 {
+		nps = int(float64(info.Nodes) / elapsed.Seconds())
+	}
+
+	// Format score (cp or mate)
+	scoreStr := fmt.Sprintf("cp %d", info.Score)
+	if info.Score > search.MateBound {
+		movesToMate := (search.EvalMate - info.Score + 1) / 2
+		scoreStr = fmt.Sprintf("mate %d", movesToMate)
+	} else if info.Score < -search.MateBound {
+		movesToMate := -(search.EvalMate + info.Score + 1) / 2
+		scoreStr = fmt.Sprintf("mate %d", movesToMate)
+	}
+
+	// Format PV
+	pvStr := ""
+	for _, m := range info.PV {
+		pvStr += m.String() + " "
+	}
+
+	infoStr := fmt.Sprintf("info depth %d score %s nodes %d nps %d time %d pv %s", info.Depth, scoreStr, info.Nodes, nps, ms, pvStr)
+	u.writeLine(infoStr)
 }
 
 // writeLine writes a line to output

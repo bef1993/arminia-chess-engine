@@ -755,3 +755,123 @@ func TestGetGameStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNoisyMoves(t *testing.T) {
+	game := NewGame()
+	game.Board.Clear()
+
+	// Setup:
+	// White King at e1
+	// White Pawn at e4
+	// Black Pawn at d5 (capture target)
+	// White Knight at g1 (quiet move available to f3)
+	// Black King at e8
+
+	game.Board.SetPieceAt("e1", WhiteKing)
+	game.Board.SetPieceAt("e4", WhitePawn)
+	game.Board.SetPieceAt("d5", BlackPawn)
+	game.Board.SetPieceAt("g1", WhiteKnight)
+	game.Board.SetPieceAt("e8", BlackKing)
+	game.CurrentTurn = White
+
+	noisyMoves := game.GetNoisyMoves()
+
+	// Expected: e4xd5 only. g1-f3 is quiet. e4-e5 is quiet.
+	assert.Len(t, noisyMoves, 1, "Expected exactly 1 noisy move")
+	if len(noisyMoves) > 0 {
+		assert.Equal(t, FileE, noisyMoves[0].FromCol)
+		assert.Equal(t, Rank4, noisyMoves[0].FromRow)
+		assert.Equal(t, FileD, noisyMoves[0].ToCol)
+		assert.Equal(t, Rank5, noisyMoves[0].ToRow)
+	}
+}
+
+func TestGetNoisyMovesPromotions(t *testing.T) {
+	game := NewGame()
+	game.Board.Clear()
+
+	// Setup: White Pawn at a7
+	game.Board.SetPieceAt("e1", WhiteKing)
+	game.Board.SetPieceAt("a7", WhitePawn)
+	game.Board.SetPieceAt("e8", BlackKing)
+	game.CurrentTurn = White
+
+	noisyMoves := game.GetNoisyMoves()
+
+	// Expected: 4 promotion moves (Q, R, B, N)
+	assert.Len(t, noisyMoves, 4, "Expected 4 promotion moves")
+	for _, m := range noisyMoves {
+		assert.NotEqual(t, NoPiece, m.PromotionPiece, "Move should be a promotion")
+	}
+}
+
+func TestGetNoisyMovesEnPassant(t *testing.T) {
+	game := NewGame()
+	game.Board.Clear()
+
+	game.Board.SetPieceAt("e1", WhiteKing)
+	game.Board.SetPieceAt("e5", WhitePawn)
+	game.Board.SetPieceAt("d5", BlackPawn) // Just moved d7-d5
+	game.Board.SetPieceAt("e8", BlackKing)
+
+	game.CurrentTurn = White
+	game.EnPassantTargetCol = FileD
+	game.EnPassantTargetRow = Rank6
+
+	noisyMoves := game.GetNoisyMoves()
+
+	// Expected: exd6 e.p.
+	// Note: e5-e6 is quiet, so not included.
+	assert.Len(t, noisyMoves, 1, "Expected 1 noisy move (en passant)")
+	if len(noisyMoves) > 0 {
+		assert.Equal(t, FileE, noisyMoves[0].FromCol)
+		assert.Equal(t, FileD, noisyMoves[0].ToCol)
+		assert.Equal(t, Rank6, noisyMoves[0].ToRow)
+	}
+}
+
+func TestGetNoisyMovesPinnedCapture(t *testing.T) {
+	game := NewGame()
+	game.Board.Clear()
+
+	// Setup:
+	// White King at e1
+	// White Rook at e2 (pinned by Black Rook at e8)
+	// Black Rook at e8
+	// Black Knight at a2 (capture target for White Rook, not adjacent to King)
+	// White Pawn at d7 (can promote or capture Rook at e8)
+	// White Pawn at h2 (can make quiet move)
+
+	game.Board.SetPieceAt("e1", WhiteKing)
+	game.Board.SetPieceAt("e2", WhiteRook)
+	game.Board.SetPieceAt("e8", BlackRook)
+	game.Board.SetPieceAt("a2", BlackKnight)
+	game.Board.SetPieceAt("d7", WhitePawn)
+	game.Board.SetPieceAt("h2", WhitePawn)
+
+	game.CurrentTurn = White
+
+
+	noisyMoves := game.GetNoisyMoves()
+
+	// Convert to map for easy lookup
+	moveMap := make(map[string]bool)
+	for _, m := range noisyMoves {
+		moveMap[m.String()] = true
+	}
+
+	// 1. Check Rxe8 (Capture of pinner) - Should be present
+	assert.True(t, moveMap["e2e8"], "Should find valid capture of pinner (Rxe8)")
+
+	// 2. Check Rxa2 (Capture by pinned piece moving off-line) - Should NOT be present
+	assert.False(t, moveMap["e2a2"], "Should not find illegal capture by pinned piece (Rxa2)")
+
+	// 3. Check d7xe8 (Pawn capture promotion) - Should be present
+	assert.True(t, moveMap["d7e8q"], "Should find pawn capture promotion (d7xe8=Q)")
+
+	// 4. Check d7-d8 (Pawn push promotion) - Should be present
+	assert.True(t, moveMap["d7d8q"], "Should find pawn promotion (d7-d8=Q)")
+
+	// 5. Check h2-h3 (Quiet move) - Should NOT be present
+	assert.False(t, moveMap["h2h3"], "Should not find quiet pawn move (h2-h3)")
+}

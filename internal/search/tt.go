@@ -106,3 +106,8 @@ func (tt *TranspositionTable) Store(hash uint64, depth, score int, flag TTFlag, 
 func (tt *TranspositionTable) Resize(sizeMB int) {
 	*tt = *NewTranspositionTable(sizeMB)
 }
+
+// Clear clears the transposition table
+func (tt *TranspositionTable) Clear() {
+	tt.entries = make([]TTEntry, len(tt.entries))
+}

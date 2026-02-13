@@ -94,7 +94,7 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
 **High Priority (Phase 4 - Advanced Search):**
 
-- [ ] Iterative Deepening & Time Management
+- [x] Iterative Deepening & Time Management
 - [ ] Heuristic Move Ordering
 
 **Future Improvements (Phase 5+):**
