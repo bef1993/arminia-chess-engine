@@ -24,6 +24,11 @@ arminia-chess-engine/
 │   │   ├── moves.go                # Move generation for all pieces
 │   │   └── *_test.go               # Comprehensive unit tests (60+)
 │   │
+│   ├── search/                     # Search & Evaluation
+│   │   ├── search.go               # Negamax algorithm
+│   │   ├── eval.go                 # Evaluation function
+│   │   └── *_test.go               # Search tests
+│   │
 │   └── uci/                        # UCI protocol implementation
 │       ├── protocol.go             # UCI command handler
 │       └── protocol_test.go        # UCI protocol tests
@@ -114,13 +119,16 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
 ## Next Steps
 
-**High Priority (Phase 4):**
-- [x] FEN position support
- - [x] Evaluation function (Perspective-based)
- - [x] Search algorithm (Negamax with Alpha-Beta pruning)
- - [ ] Iterative Deepening
- - [ ] Time Management (respect wtime/btime)
- - [ ] Quiescence Search
+**High Priority (Phase 4 - Advanced Search):**
+- [ ] Iterative Deepening & Time Management
+- [ ] Quiescence Search
+- [ ] Heuristic Move Ordering
+- [ ] Transposition Tables (with Zobrist Hashing)
+
+**Future Improvements (Phase 5+):**
+- [ ] Bitboard Representation
+- [ ] Advanced Parallel Search (Lazy SMP)
+- [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 

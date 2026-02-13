@@ -4,27 +4,7 @@ This document provides technical guidance for developers and agents working on t
 
 ## Project Layout
 
-```
-cmd/                          # Entry points (multiple executables)
-├── uci/main.go               # UCI protocol mode for engine competition
-└── cli/main.go               # Interactive CLI for manual testing
-
-internal/                     # Private packages (Go visibility - no external imports)
-├── engine/
-│   ├── piece.go              # Piece types (Pawn, Knight, Bishop, Rook, Queen, King)
-│   ├── board.go              # 8x8 board state, piece placement, movement
-│   ├── game.go               # Game state, turn management, board display
-│   ├── moves.go              # Move generation for all 6 piece types
-│   ├── *_test.go             # 60+ comprehensive unit tests
-│
-└── uci/
-    ├── protocol.go           # UCI command parsing and handling
-    └── protocol_test.go      # UCI protocol tests (10+ tests)
-
-bin/                          # Built executables
-├── arminia-uci.exe           # UCI mode binary
-└── arminia-cli.exe           # CLI mode binary
-```
+See [README.md](README.md) for the current project file structure.
 
 ## Key Files & Responsibilities
 
@@ -42,6 +22,13 @@ bin/                          # Built executables
 | File | Purpose | Key Functions |
 |------|---------|---------------|
 | `protocol.go` | UCI command handler | `Protocol` struct, `Run()`, `handleCommand()`, 7 command handlers |
+
+### Search (internal/search/)
+
+| File | Purpose | Key Functions |
+|------|---------|---------------|
+| `search.go` | Search algorithm | `Search()`, `negamax()` |
+| `eval.go` | Evaluation function | `Evaluate()` |
 
 ### Coordinate System
 
@@ -125,7 +112,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Search algorithm (Negamax with Alpha-Beta)
 - ✅ Basic Evaluation function (Material)
 - ❌ Fixed depth only (Depth 4)
-- ❌ No time management
+- ❌ No time management or iterative deepening
 - ❌ No move ordering
 - ❌ No Quiescence search
 
