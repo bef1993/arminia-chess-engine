@@ -20,7 +20,7 @@ func TestSearchPlaceholder(t *testing.T) {
 
 	// The placeholder search just returns the first legal move.
 	// Let's just ensure it returns a valid move.
-	move, _, _ := Search(game, 1)
+	move, _, _ := Search(game, 1, nil)
 
 	// A zero-value move would have FromCol=0, FromRow=0, etc.
 	assert.NotEqual(t, engine.Move{}, move, "Search should return a non-zero move from the starting position")
@@ -37,7 +37,7 @@ func TestSearchFindsMateInOne(t *testing.T) {
 	// Search should find the mate
 	// Depth 2 is required because depth 1 only evaluates the position (material),
 	// while depth 2 checks if the opponent has any legal moves left.
-	move, score, _ := Search(game, 2)
+	move, score, _ := Search(game, 2, nil)
 
 	// Expected move: Qd6-e6#
 	assert.Equal(t, "d6e6", move.String(), "Should find mate d6e6")
@@ -52,7 +52,7 @@ func TestSearchFindsMateInOneBlack(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move, score, _ := Search(game, 2)
+	move, score, _ := Search(game, 2, nil)
 
 	// Expected move: Rb1-a1#
 	assert.Equal(t, "b1a1", move.String(), "Should find mate b1a1")
@@ -66,7 +66,7 @@ func TestSearchFindsMateInTwo(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move, score, _ := Search(game, 4)
+	move, score, _ := Search(game, 4, nil)
 
 	// Expected move: Qf4+, followed by Qxc1#
 	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
@@ -80,7 +80,7 @@ func TestSearchFindsMateInThreeWithEnPassant(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	move, score, _ := Search(game, 6)
+	move, score, _ := Search(game, 6, nil)
 
 	// Expected move: e6c8
 	assert.Equal(t, "e6c8", move.String(), "Should find mate in 3 with en passant")
@@ -101,11 +101,11 @@ func TestTTIntegration_ReducesNodeCount(t *testing.T) {
 
 	// 1. First Search (Cold TT)
 	depth := 4
-	move1, score1, nodes1 := Search(game, depth)
+	move1, score1, nodes1 := Search(game, depth, nil)
 
 	// 2. Second Search (Warm TT)
 	// We expect the search to find the entry in the TT and return immediately or prune heavily
-	move2, score2, nodes2 := Search(game, depth)
+	move2, score2, nodes2 := Search(game, depth, nil)
 
 	// Assertions
 	assert.Equal(t, move1, move2, "Best move should be consistent")
@@ -140,7 +140,7 @@ func TestQuiescence_AvoidsBadCapture(t *testing.T) {
 	// Search at depth 1.
 	// Without QS, negamax sees Qxd8 -> +6 (Q vs N) because it doesn't see the recapture.
 	// With QS, negamax sees Qxd8 -> -3 (N vs nothing) because it sees Nxd8.
-	move, _, _ := Search(game, 1)
+	move, _, _ := Search(game, 1, nil)
 
 	assert.NotEqual(t, "d1d8", move.String(), "Quiescence search should avoid bad capture d1d8")
 }
@@ -167,4 +167,40 @@ func TestQuiescence_IncludesEnPassant(t *testing.T) {
 	// Score should reflect winning a pawn (~100)
 	// We use 50 as a safe lower bound for a pawn advantage
 	assert.Greater(t, score, 50, "Quiescence search should find en passant capture winning a pawn")
+}
+
+func TestIterativeDeepening_Callback(t *testing.T) {
+	game := engine.NewGame()
+	maxDepth := 3
+	reportedDepths := []int{}
+
+	callback := func(depth, score, nodes int, bestMove engine.Move) {
+		reportedDepths = append(reportedDepths, depth)
+		assert.Greater(t, nodes, 0, "Nodes should be > 0")
+		assert.NotEqual(t, engine.Move{}, bestMove, "Best move should be valid")
+	}
+
+	move, _, nodes := Search(game, maxDepth, callback)
+
+	assert.NotEqual(t, engine.Move{}, move)
+	assert.Greater(t, nodes, 0)
+
+	expectedDepths := []int{1, 2, 3}
+	assert.Equal(t, expectedDepths, reportedDepths, "Callback should be called for depths 1..maxDepth")
+}
+
+func TestIterativeDeepening_NodeAccumulation(t *testing.T) {
+	game := engine.NewGame()
+	maxDepth := 3
+
+	var lastNodes int
+	callback := func(depth, score, nodes int, bestMove engine.Move) {
+		if depth > 1 {
+			assert.Greater(t, nodes, lastNodes, "Total nodes should increase with depth")
+		}
+		lastNodes = nodes
+	}
+
+	_, _, totalNodes := Search(game, maxDepth, callback)
+	assert.Equal(t, lastNodes, totalNodes, "Final returned nodes should match last callback nodes")
 }

@@ -24,14 +24,32 @@ func scoreFromTT(score, ply int) int {
 	return score
 }
 
+// SearchCallback is a function type for reporting search progress
+type SearchCallback func(depth, score, nodes int, bestMove engine.Move)
+
 // Search finds the best move for the current position.
 // This is the entry point for the search algorithm.
 // Returns the best move, the score, and the number of nodes visited.
-func Search(game *engine.Game, depth int) (engine.Move, int, int) {
-	nodes := 0
-	// We call negamax directly. It returns the best score and the best move.
-	eval, bestMove := negamax(game, depth, -EvalInfinity, EvalInfinity, 0, &nodes)
-	return bestMove, eval, nodes
+// onInfo is a callback function to report search progress (can be nil).
+func Search(game *engine.Game, maxDepth int, onInfo SearchCallback) (engine.Move, int, int) {
+	var bestMove engine.Move
+	var score int
+	totalNodes := 0
+
+	// Iterative Deepening
+	for depth := 1; depth <= maxDepth; depth++ {
+		// We use a new node counter for each iteration to track work done
+		// Note: In a real time-managed engine, we would check for timeout here
+		eval, move := negamax(game, depth, -EvalInfinity, EvalInfinity, 0, &totalNodes)
+
+		bestMove = move
+		score = eval
+
+		if onInfo != nil {
+			onInfo(depth, score, totalNodes, bestMove)
+		}
+	}
+	return bestMove, score, totalNodes
 }
 
 // negamax implements the Negamax algorithm with alpha-beta pruning.
@@ -131,6 +149,7 @@ func negamax(game *engine.Game, depth int, alpha, beta int, ply int, nodes *int)
 // quiescence search extends the search at leaf nodes to avoid the horizon effect.
 // It only considers "noisy" moves (captures and promotions).
 func quiescence(game *engine.Game, alpha, beta int, nodes *int) int {
+	*nodes++
 	alphaOrig := alpha
 
 	// 1. Transposition Table Lookup
@@ -141,11 +160,12 @@ func quiescence(game *engine.Game, alpha, beta int, nodes *int) int {
 		if entry.Flag == FlagExact {
 			return score
 		}
-		if entry.Flag == FlagLowerBound {
+		switch entry.Flag {
+		case FlagLowerBound:
 			if score > alpha {
 				alpha = score
 			}
-		} else if entry.Flag == FlagUpperBound {
+		case FlagUpperBound:
 			if score < beta {
 				beta = score
 			}
@@ -155,7 +175,6 @@ func quiescence(game *engine.Game, alpha, beta int, nodes *int) int {
 		}
 	}
 
-	*nodes++
 	standPat := Evaluate(game)
 	if standPat >= beta {
 		GlobalTT.Store(game.ZobristHash, 0, standPat, FlagLowerBound, engine.Move{})
