@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Protocol represents the UCI protocol handler
@@ -269,14 +270,38 @@ func (u *Protocol) handleGo(args []string) error {
 
 	slog.Info("Search started", "limits", limits)
 
+	start := time.Now()
+
 	// Call the search package
 	// TODO: Pass limits to search
-	move, _ := search.Search(u.game, 4)
+	move, score, nodes := search.Search(u.game, 4)
+
+	duration := time.Since(start)
+	ms := duration.Milliseconds()
+	nps := 0
+	if duration.Seconds() > 0 {
+		nps = int(float64(nodes) / duration.Seconds())
+	}
 
 	if (move == engine.Move{}) {
 		// No legal moves available (Checkmate or Stalemate)
 		return u.writeLine("bestmove (none)")
 	}
+
+	// Format score (cp or mate)
+	scoreStr := fmt.Sprintf("cp %d", score)
+	if score > search.MateBound {
+		movesToMate := (search.EvalMate - score + 1) / 2
+		scoreStr = fmt.Sprintf("mate %d", movesToMate)
+	} else if score < -search.MateBound {
+		movesToMate := -(search.EvalMate + score + 1) / 2
+		scoreStr = fmt.Sprintf("mate %d", movesToMate)
+	}
+
+	// Report search statistics
+	infoStr := fmt.Sprintf("info depth 4 score %s nodes %d nps %d time %d pv %s", scoreStr, nodes, nps, ms, move.String())
+	slog.Info("Search stats", "depth", 4, "score", scoreStr, "nodes", nodes, "nps", nps, "time_ms", ms, "pv", move.String())
+	u.writeLine(infoStr)
 
 	slog.Info("Best move found", "move", move.String())
 	return u.writeLine(fmt.Sprintf("bestmove %s", move.String()))
