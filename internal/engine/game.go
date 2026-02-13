@@ -30,6 +30,7 @@ type GameState struct {
 	HalfMoveClock      int
 	CapturedPiece      Piece
 	PositionHistory    []string
+	ZobristHash        uint64
 }
 
 // Game represents a chess game
@@ -64,6 +65,7 @@ func NewGame() *Game {
 		},
 	}
 	g.PositionHistory = append(g.PositionHistory, g.GeneratePositionKey())
+	g.ZobristHash = g.ComputeZobristHash()
 	return g
 }
 
@@ -132,6 +134,28 @@ func (g *Game) ExecuteMove(move Move) bool {
 		return false
 	}
 
+	// Start updating hash incrementally
+	hash := g.ZobristHash
+
+	// XOR out old state (Castling, EP, Turn)
+	// We use the current state values before they are modified
+	hash ^= zobristCastling[g.CastlingRights]
+	if g.EnPassantTargetCol != -1 {
+		hash ^= zobristEnPassant[g.EnPassantTargetCol]
+	} else {
+		hash ^= zobristEnPassant[8]
+	}
+	hash ^= zobristBlackTurn // Toggle turn
+
+	// XOR out moving piece from source
+	srcSq := move.FromRow*8 + move.FromCol
+	hash ^= zobristPiece[piece.Color()][piece.Type()][srcSq]
+
+	// XOR in moving piece at dest (we'll handle promotion replacement later)
+	// Note: If it's a capture, we'll XOR out the captured piece below
+	dstSq := move.ToRow*8 + move.ToCol
+	hash ^= zobristPiece[piece.Color()][piece.Type()][dstSq]
+
 	// Determine move type from board state
 	targetPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
 	isCapture := targetPiece != NoPiece
@@ -143,6 +167,11 @@ func (g *Game) ExecuteMove(move Move) bool {
 		targetPiece == NoPiece &&
 		move.ToCol == g.EnPassantTargetCol &&
 		move.ToRow == g.EnPassantTargetRow
+
+	// Handle Capture (Remove target piece from dest)
+	if isCapture {
+		hash ^= zobristPiece[targetPiece.Color()][targetPiece.Type()][dstSq]
+	}
 
 	// Detect castling (King moving 2 squares horizontally)
 	isCastling := piece.Type() == King && (move.ToCol-move.FromCol == 2 || move.FromCol-move.ToCol == 2)
@@ -159,6 +188,11 @@ func (g *Game) ExecuteMove(move Move) bool {
 		isCapture = true
 		epCaptureRow := move.FromRow
 		g.Board.SetPiece(move.ToCol, epCaptureRow, NoPiece)
+
+		// Update Hash: Remove captured EP pawn
+		epPawn := state.CapturedPiece
+		epSq := epCaptureRow*8 + move.ToCol
+		hash ^= zobristPiece[epPawn.Color()][epPawn.Type()][epSq]
 	}
 
 	// Execute the move
@@ -170,15 +204,36 @@ func (g *Game) ExecuteMove(move Move) bool {
 		if move.ToCol > move.FromCol { // Kingside
 			// Move rook from H-file (7) to F-file (5)
 			g.Board.MovePiece(FileH, row, FileF, row)
+
+			// Update Hash: Move Rook
+			rook := g.Board.GetPiece(FileF, row)
+			oldRookSq := row*8 + FileH
+			newRookSq := row*8 + FileF
+			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
+			hash ^= zobristPiece[rook.Color()][rook.Type()][newRookSq]
 		} else { // Queenside
 			// Move rook from A-file (0) to D-file (3)
 			g.Board.MovePiece(FileA, row, FileD, row)
+
+			// Update Hash: Move Rook
+			rook := g.Board.GetPiece(FileD, row)
+			oldRookSq := row*8 + FileA
+			newRookSq := row*8 + FileD
+			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
+			hash ^= zobristPiece[rook.Color()][rook.Type()][newRookSq]
 		}
 	}
 
 	// Handle pawn promotion
 	if move.PromotionPiece != NoPiece {
 		g.Board.SetPiece(move.ToCol, move.ToRow, move.PromotionPiece)
+
+		// Update Hash: Replace Pawn with Promoted Piece
+		// We already added the Pawn at dstSq above. Remove it.
+		hash ^= zobristPiece[piece.Color()][piece.Type()][dstSq]
+		// Add promoted piece
+		promPiece := move.PromotionPiece
+		hash ^= zobristPiece[promPiece.Color()][promPiece.Type()][dstSq]
 	}
 
 	// Update castling rights if king or rook moved
@@ -232,6 +287,16 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 	// Push state to history
 	g.StateHistory = append(g.StateHistory, state)
+
+	// XOR in new state (Castling, EP)
+	hash ^= zobristCastling[g.CastlingRights]
+	if g.EnPassantTargetCol != -1 {
+		hash ^= zobristEnPassant[g.EnPassantTargetCol]
+	} else {
+		hash ^= zobristEnPassant[8]
+	}
+
+	g.ZobristHash = hash
 
 	return true
 }
@@ -640,6 +705,9 @@ func (g *Game) LoadFEN(fen string) error {
 
 	// Reset position history
 	g.PositionHistory = []string{g.GeneratePositionKey()}
+
+	// Compute initial hash
+	g.ZobristHash = g.ComputeZobristHash()
 
 	return nil
 }
