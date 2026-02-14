@@ -135,6 +135,68 @@ func (p Piece) GetSymbol() string {
 	return " "
 }
 
+func (p Piece) GetChar() string {
+	switch p {
+	case WhitePawn:
+		return "P"
+	case WhiteKnight:
+		return "N"
+	case WhiteBishop:
+		return "B"
+	case WhiteRook:
+		return "R"
+	case WhiteQueen:
+		return "Q"
+	case WhiteKing:
+		return "K"
+	case BlackPawn:
+		return "p"
+	case BlackKnight:
+		return "n"
+	case BlackBishop:
+		return "b"
+	case BlackRook:
+		return "r"
+	case BlackQueen:
+		return "q"
+	case BlackKing:
+		return "k"
+	default:
+		return ""
+	}
+}
+
+func NewPieceFromChar(c rune) Piece {
+	switch c {
+	case 'P':
+		return WhitePawn
+	case 'N':
+		return WhiteKnight
+	case 'B':
+		return WhiteBishop
+	case 'R':
+		return WhiteRook
+	case 'Q':
+		return WhiteQueen
+	case 'K':
+		return WhiteKing
+	case 'p':
+		return BlackPawn
+	case 'n':
+		return BlackKnight
+	case 'b':
+		return BlackBishop
+	case 'r':
+		return BlackRook
+	case 'q':
+		return BlackQueen
+	case 'k':
+		return BlackKing
+	default:
+		return NoPiece
+	}
+}
+
 // Value returns the standard material value of the piece
 func (p Piece) Value() int {
 	switch p.Type() {

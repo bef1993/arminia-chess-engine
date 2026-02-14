@@ -686,7 +686,7 @@ func (g *Game) LoadFEN(fen string) error {
 				emptySquares, _ := strconv.Atoi(string(char))
 				col += emptySquares
 			} else {
-				piece := charToPiece(char)
+				piece := NewPieceFromChar(char)
 				if piece == NoPiece {
 					return fmt.Errorf("invalid piece char: %c", char)
 				}
@@ -784,7 +784,7 @@ func (g *Game) GeneratePositionKey() string {
 					sb.WriteString(strconv.Itoa(emptyCount))
 					emptyCount = 0
 				}
-				sb.WriteString(pieceToChar(piece))
+				sb.WriteString(piece.GetChar())
 			}
 		}
 		if emptyCount > 0 {
@@ -836,66 +836,4 @@ func (g *Game) GeneratePositionKey() string {
 	}
 
 	return sb.String()
-}
-
-func pieceToChar(p Piece) string {
-	switch p {
-	case WhitePawn:
-		return "P"
-	case WhiteKnight:
-		return "N"
-	case WhiteBishop:
-		return "B"
-	case WhiteRook:
-		return "R"
-	case WhiteQueen:
-		return "Q"
-	case WhiteKing:
-		return "K"
-	case BlackPawn:
-		return "p"
-	case BlackKnight:
-		return "n"
-	case BlackBishop:
-		return "b"
-	case BlackRook:
-		return "r"
-	case BlackQueen:
-		return "q"
-	case BlackKing:
-		return "k"
-	default:
-		return ""
-	}
-}
-
-func charToPiece(c rune) Piece {
-	switch c {
-	case 'P':
-		return WhitePawn
-	case 'N':
-		return WhiteKnight
-	case 'B':
-		return WhiteBishop
-	case 'R':
-		return WhiteRook
-	case 'Q':
-		return WhiteQueen
-	case 'K':
-		return WhiteKing
-	case 'p':
-		return BlackPawn
-	case 'n':
-		return BlackKnight
-	case 'b':
-		return BlackBishop
-	case 'r':
-		return BlackRook
-	case 'q':
-		return BlackQueen
-	case 'k':
-		return BlackKing
-	default:
-		return NoPiece
-	}
 }
