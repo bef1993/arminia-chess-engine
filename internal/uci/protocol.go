@@ -430,7 +430,7 @@ func (u *Protocol) sendSearchInfo(info search.SearchInfo, start time.Time) {
 		pvStr += m.String() + " "
 	}
 
-	infoStr := fmt.Sprintf("info depth %d score %s nodes %d nps %d time %d pv %s", info.Depth, scoreStr, info.Nodes, nps, ms, pvStr)
+	infoStr := fmt.Sprintf("info depth %d seldepth %d score %s nodes %d nps %d time %d pv %s", info.Depth, info.SelDepth, scoreStr, info.Nodes, nps, ms, pvStr)
 	u.writeLine(infoStr)
 }
 

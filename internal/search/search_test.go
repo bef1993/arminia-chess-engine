@@ -165,14 +165,15 @@ func TestQuiescence_IncludesEnPassant(t *testing.T) {
 	// Evaluate at root should be 0 (equal material).
 	// Quiescence should find exd6 e.p. which wins a pawn.
 	nodes := 0
-	score, _ := quiescence(context.Background(), game, -EvalInfinity, EvalInfinity, 0, &nodes)
+	var selDepth int
+	score, _ := quiescence(context.Background(), game, -EvalInfinity, EvalInfinity, 0, &nodes, &selDepth)
 
 	// Score should reflect winning a pawn (~100)
 	// We use 50 as a safe lower bound for a pawn advantage
 	assert.Greater(t, score, 50, "Quiescence search should find en passant capture winning a pawn")
 }
 
-func TestIterativeDeepening_Callback(t *testing.T) {
+func TestIterativeDeepening_ReportsInfo(t *testing.T) {
 	game := engine.NewGame()
 	maxDepth := 3
 	reportedDepths := []int{}
@@ -197,7 +198,7 @@ func TestIterativeDeepening_Callback(t *testing.T) {
 	assert.Greater(t, nodes, 0)
 
 	expectedDepths := []int{1, 2, 3}
-	assert.Equal(t, expectedDepths, reportedDepths, "Callback should be called for depths 1..maxDepth")
+	assert.Equal(t, expectedDepths, reportedDepths, "Info channel should receive updates for depths 1..maxDepth")
 }
 
 func TestIterativeDeepening_NodeAccumulation(t *testing.T) {

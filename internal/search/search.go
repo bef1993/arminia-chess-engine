@@ -31,6 +31,7 @@ func scoreFromTT(score, ply int) int {
 // SearchInfo holds progress information sent via channel
 type SearchInfo struct {
 	Depth    int
+	SelDepth int // Maximum depth reached (including quiescence extensions)
 	Score    int
 	Nodes    int
 	BestMove engine.Move
@@ -75,8 +76,9 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 
 	// Iterative Deepening
 	for depth := 1; depth <= options.MaxDepth; depth++ {
+		var selDepth int
 		// We use a new node counter for each iteration to track work done
-		eval, move, interrupted := negamax(ctx, game, depth, -EvalInfinity, EvalInfinity, 0, &totalNodes)
+		eval, move, interrupted := negamax(ctx, game, depth, -EvalInfinity, EvalInfinity, 0, &totalNodes, &selDepth)
 
 		if interrupted {
 			break
@@ -88,6 +90,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 		if infoCh != nil {
 			infoCh <- SearchInfo{
 				Depth:    depth,
+				SelDepth: selDepth,
 				Score:    score,
 				Nodes:    totalNodes,
 				BestMove: bestMove,
@@ -136,7 +139,11 @@ func getPV(game *engine.Game, firstMove engine.Move, depth int) []engine.Move {
 // negamax implements the Negamax algorithm with alpha-beta pruning.
 // ply is the distance from the root of the search tree.
 // Returns: score, bestMove, interrupted
-func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *int) (int, engine.Move, bool) {
+func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *int, selDepth *int) (int, engine.Move, bool) {
+	if ply > *selDepth {
+		*selDepth = ply
+	}
+
 	// Check for timeout every 2048 nodes
 	if (*nodes & 2047) == 0 {
 		if ctx.Err() != nil {
@@ -173,7 +180,7 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	}
 
 	if depth == 0 {
-		score, interrupted := quiescence(ctx, game, alpha, beta, ply, nodes)
+		score, interrupted := quiescence(ctx, game, alpha, beta, ply, nodes, selDepth)
 		return score, engine.Move{}, interrupted
 	}
 
@@ -196,7 +203,7 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 
 	for _, move := range moves {
 		game.ExecuteMove(move)
-		score, _, interrupted := negamax(ctx, game, depth-1, -beta, -alpha, ply+1, nodes)
+		score, _, interrupted := negamax(ctx, game, depth-1, -beta, -alpha, ply+1, nodes, selDepth)
 		if interrupted {
 			game.UnmakeMove()
 			return 0, engine.Move{}, true
@@ -235,7 +242,11 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 // quiescence search extends the search at leaf nodes to avoid the horizon effect.
 // It only considers "noisy" moves (captures and promotions).
 // Returns: score, interrupted
-func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, nodes *int) (int, bool) {
+func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, nodes *int, selDepth *int) (int, bool) {
+	if ply > *selDepth {
+		*selDepth = ply
+	}
+
 	// Check for timeout every 2048 nodes
 	if (*nodes & 2047) == 0 {
 		if ctx.Err() != nil {
@@ -286,7 +297,7 @@ func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, no
 
 	for _, move := range moves {
 		game.ExecuteMove(move)
-		score, interrupted := quiescence(ctx, game, -beta, -alpha, ply+1, nodes)
+		score, interrupted := quiescence(ctx, game, -beta, -alpha, ply+1, nodes, selDepth)
 		if interrupted {
 			game.UnmakeMove()
 			return 0, true

@@ -303,22 +303,12 @@ The search now supports iterative deepening and time management. The next step i
 
 ## Debugging Tips
 
-### Binary Testing
-
-```powershell
-# Test UCI directly
-"uci`nquit" | .\bin\arminia-uci.exe
-
-# Test position command
-"position startpos`ngo`nquit" | .\bin\arminia-uci.exe
-
-# Test specific moves
-"position startpos moves e2e4 e7e5`ngo`nquit" | .\bin\arminia-uci.exe
-```
-
 ### Unit Test Debugging
 
 ```bash
+# Run all tests with output
+go test ./... -v
+
 # Run single test with output
 go test ./internal/engine -run TestGenerateBishopMovesFromMiddle -v
 

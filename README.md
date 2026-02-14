@@ -119,14 +119,13 @@ Reference: <https://lichess.org/api#tag/Bot>
 The engine includes comprehensive unit tests:
 
 ```bash
-# Run all tests with verbose output
-go test ./engine -v
+# Run all tests
+go test ./... -v
 
-# Run specific test
-go test ./engine -run TestGeneratePawnMoves -v
+# Build binaries
+go build -o ./bin/arminia-engine.exe ./cmd/uci
+go build -o ./bin/arminia-cli.exe ./cmd/cli
 
-# Run with coverage
-go test ./engine -cover
 ```
 
 ## License
