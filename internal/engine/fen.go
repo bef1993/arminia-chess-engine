@@ -23,7 +23,7 @@ func (g *Game) LoadFEN(fen string) error {
 	}
 
 	for r, rankStr := range ranks {
-		row := r // FEN starts from rank 8 (row 0) to rank 1 (row 7)
+		row := 7 - r // FEN starts from rank 8 (row 7) to rank 1 (row 0)
 		col := 0
 		for _, char := range rankStr {
 			if unicode.IsDigit(char) {
@@ -34,7 +34,7 @@ func (g *Game) LoadFEN(fen string) error {
 				if piece == NoPiece {
 					return fmt.Errorf("invalid piece char: %c", char)
 				}
-				g.Board.SetPiece(col, row, piece)
+				g.Board.SetPiece(row*8+col, piece)
 				col++
 			}
 		}
@@ -73,13 +73,11 @@ func (g *Game) LoadFEN(fen string) error {
 	}
 
 	// 4. En passant target square
-	g.EnPassantTargetCol = -1
-	g.EnPassantTargetRow = -1
+	g.EnPassantTarget = -1
 	if parts[3] != "-" {
-		col, row := Sq(parts[3])
-		if col != -1 && row != -1 {
-			g.EnPassantTargetCol = col
-			g.EnPassantTargetRow = row
+		sq := Sq(parts[3])
+		if sq != -1 {
+			g.EnPassantTarget = sq
 		}
 	}
 
@@ -117,10 +115,10 @@ func (g *Game) GenerateFEN() string {
 	var sb strings.Builder
 
 	// 1. Piece placement
-	for row := 0; row < 8; row++ {
+	for row := 7; row >= 0; row-- {
 		emptyCount := 0
 		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
+			piece := g.Board.GetPiece(row*8 + col)
 			if piece == NoPiece {
 				emptyCount++
 			} else {
@@ -134,7 +132,7 @@ func (g *Game) GenerateFEN() string {
 		if emptyCount > 0 {
 			sb.WriteString(strconv.Itoa(emptyCount))
 		}
-		if row < 7 {
+		if row > 0 {
 			sb.WriteString("/")
 		}
 	}
@@ -171,9 +169,9 @@ func (g *Game) GenerateFEN() string {
 	sb.WriteString(" ")
 
 	// 4. En passant target square
-	if g.EnPassantTargetCol != -1 && g.EnPassantTargetRow != -1 {
-		col := rune('a' + g.EnPassantTargetCol)
-		row := 8 - g.EnPassantTargetRow
+	if g.EnPassantTarget != -1 {
+		col := rune('a' + (g.EnPassantTarget % 8))
+		row := 8 - (g.EnPassantTarget / 8)
 		sb.WriteString(fmt.Sprintf("%c%d", col, row))
 	} else {
 		sb.WriteString("-")

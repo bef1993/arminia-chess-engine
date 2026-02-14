@@ -104,7 +104,7 @@ func PrintBoard(w io.Writer, g *engine.Game) {
 		fmt.Fprint(w, "║")
 
 		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
+			piece := g.Board.GetPiece(row*8 + col)
 			if piece != engine.NoPiece {
 				fmt.Fprint(w, piece.GetSymbol())
 			} else {

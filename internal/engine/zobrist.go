@@ -6,7 +6,7 @@ import (
 
 // Zobrist keys
 var (
-	zobristPiece     [2][8][64]uint64 // [Color][PieceType][Square] - Size 8 to accommodate PieceType values safely
+	zobristPiece     [2][8][64]uint64 // [Color][PieceType][Square] - Size 8 to accommodate PieceType values safely // TODO why 8, not 7?
 	zobristCastling  [16]uint64       // [CastlingRights]
 	zobristEnPassant [9]uint64        // [File] (8 for none)
 	zobristBlackTurn uint64           // XORed if it's Black's turn
@@ -44,15 +44,12 @@ func (g *Game) ComputeZobristHash() uint64 {
 	var hash uint64
 
 	// 1. Pieces
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
-			if piece != NoPiece {
-				sq := row*8 + col
-				// Assuming PieceType constants map to 0-7 range
-				// Assuming Color constants: White=0, Black=1
-				hash ^= zobristPiece[piece.Color()][piece.Type()][sq]
-			}
+	for sq := 0; sq < 64; sq++ {
+		piece := g.Board.GetPiece(sq)
+		if piece != NoPiece {
+			// Assuming PieceType constants map to 0-7 range
+			// Assuming Color constants: White=0, Black=1
+			hash ^= zobristPiece[piece.Color()][piece.Type()][sq]
 		}
 	}
 
@@ -60,8 +57,8 @@ func (g *Game) ComputeZobristHash() uint64 {
 	hash ^= zobristCastling[g.CastlingRights]
 
 	// 3. En Passant
-	if g.EnPassantTargetCol != -1 {
-		hash ^= zobristEnPassant[g.EnPassantTargetCol]
+	if g.EnPassantTarget != -1 {
+		hash ^= zobristEnPassant[g.EnPassantTarget%8]
 	} else {
 		hash ^= zobristEnPassant[8] // No EP target
 	}

@@ -6,42 +6,39 @@ import (
 
 // Move represents a chess move (pure data)
 type Move struct {
-	FromCol        int
-	FromRow        int
-	ToCol          int
-	ToRow          int
+	From           int
+	To             int
 	PromotionPiece Piece // 0 if no promotion
 }
 
 // NewMove creates a move without promotion
-func NewMove(fromCol, fromRow, toCol, toRow int) Move {
+func NewMove(from, to int) Move {
 	return Move{
-		FromCol:        fromCol,
-		FromRow:        fromRow,
-		ToCol:          toCol,
-		ToRow:          toRow,
-		PromotionPiece: 0, // No promotion (Pawn constant)
+		From:           from,
+		To:             to,
+		PromotionPiece: NoPiece, // No promotion (Pawn constant)
 	}
 }
 
 // NewPromotionMove creates a pawn promotion move
-func NewPromotionMove(fromCol, fromRow, toCol, toRow int, promotionPiece Piece) Move {
+func NewPromotionMove(from, to int, promotionPiece Piece) Move {
 	return Move{
-		FromCol:        fromCol,
-		FromRow:        fromRow,
-		ToCol:          toCol,
-		ToRow:          toRow,
+		From:           from,
+		To:             to,
 		PromotionPiece: promotionPiece,
 	}
 }
 
 // String returns the UCI representation of the move.
 func (m Move) String() string {
+	if m == (Move{}) {
+		return "0000"
+	}
 	moveStr := fmt.Sprintf("%c%d%c%d",
-		rune('a'+m.FromCol),
-		8-m.FromRow,
-		rune('a'+m.ToCol),
-		8-m.ToRow)
+		rune('a'+(m.From%8)),
+		(m.From/8)+1,
+		rune('a'+(m.To%8)),
+		(m.To/8)+1)
 
 	if m.PromotionPiece != NoPiece {
 		switch m.PromotionPiece.Type() {
@@ -65,18 +62,14 @@ func ParseMove(moveStr string, game *Game) (Move, error) {
 		return Move{}, fmt.Errorf("invalid move format: %s", moveStr)
 	}
 
-	// Parse move: format is e2e4 or e7e8q (with promotion)
-	fromCol := int(moveStr[0] - 'a')
-	fromRow := 8 - int(moveStr[1]-'0')
-	toCol := int(moveStr[2] - 'a')
-	toRow := 8 - int(moveStr[3]-'0')
+	from := Sq(moveStr[0:2])
+	to := Sq(moveStr[2:4])
 
-	if fromCol < 0 || fromCol > 7 || fromRow < 0 || fromRow > 7 ||
-		toCol < 0 || toCol > 7 || toRow < 0 || toRow > 7 {
-		return Move{}, fmt.Errorf("square out of bounds")
+	if from == -1 || to == -1 {
+		return Move{}, fmt.Errorf("square out of bounds: %s", moveStr)
 	}
 
-	var promotionPiece Piece
+	promotionPiece := NoPiece
 	if len(moveStr) == 5 {
 		switch moveStr[4] {
 		case 'q':
@@ -95,8 +88,7 @@ func ParseMove(moveStr string, game *Game) (Move, error) {
 	// Check if move exists in legal moves
 	moves := game.GetLegalMoves()
 	for _, move := range moves {
-		if move.FromCol == fromCol && move.FromRow == fromRow &&
-			move.ToCol == toCol && move.ToRow == toRow &&
+		if move.From == from && move.To == to &&
 			move.PromotionPiece == promotionPiece {
 			return move, nil
 		}
@@ -106,8 +98,7 @@ func ParseMove(moveStr string, game *Game) (Move, error) {
 	// Check if there are any promotion moves for these coordinates
 	if promotionPiece == NoPiece {
 		for _, move := range moves {
-			if move.FromCol == fromCol && move.FromRow == fromRow &&
-				move.ToCol == toCol && move.ToRow == toRow &&
+			if move.From == from && move.To == to &&
 				move.PromotionPiece != NoPiece {
 				return Move{}, fmt.Errorf("promotion piece required (e.g., %sq)", moveStr)
 			}
@@ -119,45 +110,41 @@ func ParseMove(moveStr string, game *Game) (Move, error) {
 
 // MoveGenerator generates legal moves for the current position
 type MoveGenerator struct {
-	Board              *Board
-	EnPassantTargetCol int // Column of en passant target (-1 if none)
-	EnPassantTargetRow int // Row of en passant target (-1 if none)
-	CastlingRights     CastlingRights
+	Board           *Board
+	EnPassantTarget int // Square of en passant target (-1 if none)
+	CastlingRights  CastlingRights
 }
 
 // NewMoveGenerator creates a new move generator
 func NewMoveGenerator(board *Board) *MoveGenerator {
 	return &MoveGenerator{
-		Board:              board,
-		EnPassantTargetCol: -1,
-		EnPassantTargetRow: -1,
-		CastlingRights:     NoCastling,
+		Board:           board,
+		EnPassantTarget: -1,
+		CastlingRights:  NoCastling,
 	}
 }
 
 // NewMoveGeneratorWithEnPassant creates a move generator with en passant target
-func NewMoveGeneratorWithEnPassant(board *Board, epCol, epRow int) *MoveGenerator {
+func NewMoveGeneratorWithEnPassant(board *Board, epSq int) *MoveGenerator {
 	return &MoveGenerator{
-		Board:              board,
-		EnPassantTargetCol: epCol,
-		EnPassantTargetRow: epRow,
-		CastlingRights:     NoCastling,
+		Board:           board,
+		EnPassantTarget: epSq,
+		CastlingRights:  NoCastling,
 	}
 }
 
 // NewMoveGeneratorFull creates a move generator with all state
-func NewMoveGeneratorFull(board *Board, epCol, epRow int, castlingRights CastlingRights) *MoveGenerator {
+func NewMoveGeneratorFull(board *Board, epSq int, castlingRights CastlingRights) *MoveGenerator {
 	return &MoveGenerator{
-		Board:              board,
-		EnPassantTargetCol: epCol,
-		EnPassantTargetRow: epRow,
-		CastlingRights:     castlingRights,
+		Board:           board,
+		EnPassantTarget: epSq,
+		CastlingRights:  castlingRights,
 	}
 }
 
 // GenerateMovesForPiece generates all possible moves for a piece at the given position
-func (mg *MoveGenerator) GenerateMovesForPiece(col, row int) []Move {
-	piece := mg.Board.GetPiece(col, row)
+func (mg *MoveGenerator) GenerateMovesForPiece(sq int) []Move {
+	piece := mg.Board.GetPiece(sq)
 	if piece == NoPiece {
 		return []Move{}
 	}
@@ -166,57 +153,64 @@ func (mg *MoveGenerator) GenerateMovesForPiece(col, row int) []Move {
 
 	switch piece.Type() {
 	case Pawn:
-		moves = mg.generatePawnMoves(col, row, piece.Color())
+		moves = mg.generatePawnMoves(sq, piece.Color())
 	case Knight:
-		moves = mg.generateKnightMoves(col, row, piece.Color())
+		moves = mg.generateKnightMoves(sq, piece.Color())
 	case Bishop:
-		moves = mg.generateBishopMoves(col, row, piece.Color())
+		moves = mg.generateBishopMoves(sq, piece.Color())
 	case Rook:
-		moves = mg.generateRookMoves(col, row, piece.Color())
+		moves = mg.generateRookMoves(sq, piece.Color())
 	case Queen:
-		moves = mg.generateQueenMoves(col, row, piece.Color())
+		moves = mg.generateQueenMoves(sq, piece.Color())
 	case King:
-		moves = mg.generateKingMoves(col, row, piece.Color())
+		moves = mg.generateKingMoves(sq, piece.Color())
 	case NoType:
 	}
 
 	return moves
 }
 
-func (mg *MoveGenerator) generatePawnMoves(col, row int, color Color) []Move {
+func (mg *MoveGenerator) generatePawnMoves(sq int, color Color) []Move {
 	var moves []Move
-	direction := -1
+	row := sq / 8
+	col := sq % 8
+
+	direction := 1
 	startRow := int(Rank2)
 	promotionRank := int(Rank8)
 
 	if color == Black {
-		direction = 1
+		direction = -1
 		startRow = int(Rank7)
 		promotionRank = int(Rank1)
 	}
 
 	// Helper function to add promotion moves
-	addPromotionMoves := func(toCol, toRow int) {
+	addPromotionMoves := func(toSq int) {
 		// Pawn can promote to Queen, Rook, Bishop, or Knight
 		for _, piece := range []PieceType{Queen, Rook, Bishop, Knight} {
-			moves = append(moves, NewPromotionMove(col, row, toCol, toRow, piece.FromColor(color)))
+			moves = append(moves, NewPromotionMove(sq, toSq, piece.FromColor(color)))
 		}
 	}
 
 	// Move forward one square
 	newRow := row + direction
-	if newRow >= 0 && newRow < 8 && mg.Board.IsEmpty(col, newRow) {
-		if newRow == promotionRank {
-			addPromotionMoves(col, newRow)
-		} else {
-			moves = append(moves, NewMove(col, row, col, newRow))
-		}
+	if newRow >= 0 && newRow < 8 {
+		toSq := newRow*8 + col
+		if mg.Board.IsEmpty(toSq) {
+			if newRow == promotionRank {
+				addPromotionMoves(toSq)
+			} else {
+				moves = append(moves, NewMove(sq, toSq))
+			}
 
-		// Move forward two squares from starting position
-		if row == startRow {
-			newRow2 := row + 2*direction
-			if mg.Board.IsEmpty(col, newRow2) {
-				moves = append(moves, NewMove(col, row, col, newRow2))
+			// Move forward two squares from starting position
+			if row == startRow {
+				newRow2 := row + 2*direction
+				toSq2 := newRow2*8 + col
+				if mg.Board.IsEmpty(toSq2) {
+					moves = append(moves, NewMove(sq, toSq2))
+				}
 			}
 		}
 	}
@@ -226,18 +220,19 @@ func (mg *MoveGenerator) generatePawnMoves(col, row int, color Color) []Move {
 		newCol := col + dcol
 		newRow := row + direction
 		if newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 {
+			toSq := newRow*8 + newCol
 			// Regular capture
-			if !mg.Board.IsEmpty(newCol, newRow) && !mg.Board.IsOccupiedByColor(newCol, newRow, color) {
+			if !mg.Board.IsEmpty(toSq) && !mg.Board.IsOccupiedByColor(toSq, color) {
 				if newRow == promotionRank {
-					addPromotionMoves(newCol, newRow)
+					addPromotionMoves(toSq)
 				} else {
-					moves = append(moves, NewMove(col, row, newCol, newRow))
+					moves = append(moves, NewMove(sq, toSq))
 				}
 			}
 
 			// En passant capture (never a promotion)
-			if newRow == mg.EnPassantTargetRow && newCol == mg.EnPassantTargetCol {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
+			if toSq == mg.EnPassantTarget {
+				moves = append(moves, NewMove(sq, toSq))
 			}
 		}
 	}
@@ -245,7 +240,7 @@ func (mg *MoveGenerator) generatePawnMoves(col, row int, color Color) []Move {
 	return moves
 }
 
-func (mg *MoveGenerator) addCastlingMoves(col, row int, color Color, moves *[]Move) {
+func (mg *MoveGenerator) addCastlingMoves(sq int, color Color, moves *[]Move) {
 	if mg.CastlingRights == NoCastling {
 		return
 	}
@@ -257,81 +252,82 @@ func (mg *MoveGenerator) addCastlingMoves(col, row int, color Color, moves *[]Mo
 	}
 
 	// Cannot castle if King is currently in check
-	if mg.Board.IsSquareAttackedByColor(col, row, opponent) {
+	if mg.Board.IsSquareAttackedByColor(sq, opponent) {
 		return
 	}
 
 	// White Castling
-	if color == White && col == FileE && row == Rank1 {
+	if color == White && sq == E1 {
 		// Kingside (e1 -> g1)
 		if mg.CastlingRights&WhiteKingside != 0 {
 			// Check path is empty (f1, g1)
-			if mg.Board.IsEmpty(FileF, Rank1) && mg.Board.IsEmpty(FileG, Rank1) {
+			if mg.Board.IsEmpty(F1) && mg.Board.IsEmpty(G1) {
 				// Check path is not attacked (f1, g1)
 				// Note: We already checked e1 (current pos) above
-				if !mg.Board.IsSquareAttackedByColor(FileF, Rank1, opponent) &&
-					!mg.Board.IsSquareAttackedByColor(FileG, Rank1, opponent) {
-					*moves = append(*moves, NewMove(FileE, Rank1, FileG, Rank1))
+				if !mg.Board.IsSquareAttackedByColor(F1, opponent) &&
+					!mg.Board.IsSquareAttackedByColor(G1, opponent) {
+					*moves = append(*moves, NewMove(E1, G1))
 				}
 			}
 		}
 		// Queenside (e1 -> c1)
 		if mg.CastlingRights&WhiteQueenside != 0 {
 			// Check path is empty (d1, c1, b1)
-			if mg.Board.IsEmpty(FileD, Rank1) && mg.Board.IsEmpty(FileC, Rank1) && mg.Board.IsEmpty(FileB, Rank1) {
+			if mg.Board.IsEmpty(D1) && mg.Board.IsEmpty(C1) && mg.Board.IsEmpty(B1) {
 				// Check path is not attacked (d1, c1)
 				// Note: b1 does not need to be safe, only empty
-				if !mg.Board.IsSquareAttackedByColor(FileD, Rank1, opponent) &&
-					!mg.Board.IsSquareAttackedByColor(FileC, Rank1, opponent) {
-					*moves = append(*moves, NewMove(FileE, Rank1, FileC, Rank1))
+				if !mg.Board.IsSquareAttackedByColor(D1, opponent) &&
+					!mg.Board.IsSquareAttackedByColor(C1, opponent) {
+					*moves = append(*moves, NewMove(E1, C1))
 				}
 			}
 		}
 	}
 
 	// Black Castling
-	if color == Black && col == FileE && row == Rank8 {
+	if color == Black && sq == E8 {
 		// Kingside (e8 -> g8)
 		if mg.CastlingRights&BlackKingside != 0 {
-			if mg.Board.IsEmpty(FileF, Rank8) && mg.Board.IsEmpty(FileG, Rank8) {
-				if !mg.Board.IsSquareAttackedByColor(FileF, Rank8, opponent) &&
-					!mg.Board.IsSquareAttackedByColor(FileG, Rank8, opponent) {
-					*moves = append(*moves, NewMove(FileE, Rank8, FileG, Rank8))
+			if mg.Board.IsEmpty(F8) && mg.Board.IsEmpty(G8) {
+				if !mg.Board.IsSquareAttackedByColor(F8, opponent) &&
+					!mg.Board.IsSquareAttackedByColor(G8, opponent) {
+					*moves = append(*moves, NewMove(E8, G8))
 				}
 			}
 		}
 		// Queenside (e8 -> c8)
 		if mg.CastlingRights&BlackQueenside != 0 {
-			if mg.Board.IsEmpty(FileD, Rank8) && mg.Board.IsEmpty(FileC, Rank8) && mg.Board.IsEmpty(FileB, Rank8) {
-				if !mg.Board.IsSquareAttackedByColor(FileD, Rank8, opponent) &&
-					!mg.Board.IsSquareAttackedByColor(FileC, Rank8, opponent) {
-					*moves = append(*moves, NewMove(FileE, Rank8, FileC, Rank8))
+			if mg.Board.IsEmpty(D8) && mg.Board.IsEmpty(C8) && mg.Board.IsEmpty(B8) {
+				if !mg.Board.IsSquareAttackedByColor(D8, opponent) &&
+					!mg.Board.IsSquareAttackedByColor(C8, opponent) {
+					*moves = append(*moves, NewMove(E8, C8))
 				}
 			}
 		}
 	}
 }
 
-func (mg *MoveGenerator) generateKnightMoves(col, row int, color Color) []Move {
+func (mg *MoveGenerator) generateKnightMoves(sq int, color Color) []Move {
 	var moves []Move
-	knightMoves := [][2]int{{-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}}
 
-	for _, move := range knightMoves {
-		newRow := row + move[0]
-		newCol := col + move[1]
+	// Use pre-calculated attacks
+	attacks := KnightAttacks[sq]
 
-		if newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 {
-			if mg.Board.IsEmpty(newCol, newRow) || !mg.Board.IsOccupiedByColor(newCol, newRow, color) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
-			}
-		}
+	// Mask out own pieces
+	validMoves := attacks & ^mg.Board.Occupancy[color]
+
+	for validMoves != 0 {
+		toSq := validMoves.PopLSB()
+		moves = append(moves, NewMove(sq, toSq))
 	}
 
 	return moves
 }
 
-func (mg *MoveGenerator) generateBishopMoves(col, row int, color Color) []Move {
+func (mg *MoveGenerator) generateBishopMoves(sq int, color Color) []Move {
 	var moves []Move
+	row := sq / 8
+	col := sq % 8
 	directions := [][2]int{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}}
 
 	for _, dir := range directions {
@@ -343,10 +339,11 @@ func (mg *MoveGenerator) generateBishopMoves(col, row int, color Color) []Move {
 				break
 			}
 
-			if mg.Board.IsEmpty(newCol, newRow) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
-			} else if !mg.Board.IsOccupiedByColor(newCol, newRow, color) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
+			toSq := newRow*8 + newCol
+			if mg.Board.IsEmpty(toSq) {
+				moves = append(moves, NewMove(sq, toSq))
+			} else if !mg.Board.IsOccupiedByColor(toSq, color) {
+				moves = append(moves, NewMove(sq, toSq))
 				break
 			} else {
 				break
@@ -357,8 +354,10 @@ func (mg *MoveGenerator) generateBishopMoves(col, row int, color Color) []Move {
 	return moves
 }
 
-func (mg *MoveGenerator) generateRookMoves(col, row int, color Color) []Move {
+func (mg *MoveGenerator) generateRookMoves(sq int, color Color) []Move {
 	var moves []Move
+	row := sq / 8
+	col := sq % 8
 	directions := [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 
 	for _, dir := range directions {
@@ -370,10 +369,11 @@ func (mg *MoveGenerator) generateRookMoves(col, row int, color Color) []Move {
 				break
 			}
 
-			if mg.Board.IsEmpty(newCol, newRow) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
-			} else if !mg.Board.IsOccupiedByColor(newCol, newRow, color) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
+			toSq := newRow*8 + newCol
+			if mg.Board.IsEmpty(toSq) {
+				moves = append(moves, NewMove(sq, toSq))
+			} else if !mg.Board.IsOccupiedByColor(toSq, color) {
+				moves = append(moves, NewMove(sq, toSq))
 				break
 			} else {
 				break
@@ -384,8 +384,10 @@ func (mg *MoveGenerator) generateRookMoves(col, row int, color Color) []Move {
 	return moves
 }
 
-func (mg *MoveGenerator) generateQueenMoves(col, row int, color Color) []Move {
+func (mg *MoveGenerator) generateQueenMoves(sq int, color Color) []Move {
 	var moves []Move
+	row := sq / 8
+	col := sq % 8
 	directions := [][2]int{{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}
 
 	for _, dir := range directions {
@@ -397,10 +399,11 @@ func (mg *MoveGenerator) generateQueenMoves(col, row int, color Color) []Move {
 				break
 			}
 
-			if mg.Board.IsEmpty(newCol, newRow) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
-			} else if !mg.Board.IsOccupiedByColor(newCol, newRow, color) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
+			toSq := newRow*8 + newCol
+			if mg.Board.IsEmpty(toSq) {
+				moves = append(moves, NewMove(sq, toSq))
+			} else if !mg.Board.IsOccupiedByColor(toSq, color) {
+				moves = append(moves, NewMove(sq, toSq))
 				break
 			} else {
 				break
@@ -411,23 +414,22 @@ func (mg *MoveGenerator) generateQueenMoves(col, row int, color Color) []Move {
 	return moves
 }
 
-func (mg *MoveGenerator) generateKingMoves(col, row int, color Color) []Move {
+func (mg *MoveGenerator) generateKingMoves(sq int, color Color) []Move {
 	var moves []Move
-	directions := [][2]int{{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}
 
-	for _, dir := range directions {
-		newRow := row + dir[0]
-		newCol := col + dir[1]
+	// Use pre-calculated attacks
+	attacks := KingAttacks[sq]
 
-		if newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 {
-			if mg.Board.IsEmpty(newCol, newRow) || !mg.Board.IsOccupiedByColor(newCol, newRow, color) {
-				moves = append(moves, NewMove(col, row, newCol, newRow))
-			}
-		}
+	// Mask out own pieces
+	validMoves := attacks & ^mg.Board.Occupancy[color]
+
+	for validMoves != 0 {
+		toSq := validMoves.PopLSB()
+		moves = append(moves, NewMove(sq, toSq))
 	}
 
 	// Add castling moves
-	mg.addCastlingMoves(col, row, color, &moves)
+	mg.addCastlingMoves(sq, color, &moves)
 
 	return moves
 }

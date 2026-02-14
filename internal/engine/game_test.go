@@ -75,24 +75,21 @@ func TestGameEnPassantTarget(t *testing.T) {
 	game := NewGame()
 
 	// Initially no en passant target
-	assert.Equal(t, -1, game.EnPassantTargetCol, "Expected no en passant target col initially")
-	assert.Equal(t, -1, game.EnPassantTargetRow, "Expected no en passant target row initially")
+	assert.Equal(t, -1, game.EnPassantTarget, "Expected no en passant target initially")
 
 	// Move white pawn 2 squares forward (e2 to e4 = col 4, row 6 to row 4)
-	move := NewMove(FileE, Rank2, FileE, Rank4)
+	move := NewMove(Sq("e2"), Sq("e4"))
 	game.ExecuteMove(move)
 
 	// En passant target should be set to (4, 5)
-	assert.Equal(t, FileE, game.EnPassantTargetCol, "Expected en passant target col at FileE")
-	assert.Equal(t, Rank3, game.EnPassantTargetRow, "Expected en passant target row at Rank3")
+	assert.Equal(t, Sq("e3"), game.EnPassantTarget, "Expected en passant target at e3")
 
 	// Make a non-pawn move to clear en passant target
-	blackMove := NewMove(1, 0, 2, 2) // Move black knight
+	blackMove := NewMove(Sq("b8"), Sq("c6")) // Move black knight
 	game.ExecuteMove(blackMove)
 
 	// En passant target should be cleared
-	assert.Equal(t, -1, game.EnPassantTargetCol, "Expected en passant target col cleared")
-	assert.Equal(t, -1, game.EnPassantTargetRow, "Expected en passant target row cleared")
+	assert.Equal(t, -1, game.EnPassantTarget, "Expected en passant target cleared")
 }
 
 func TestGameExecuteMove(t *testing.T) {
@@ -103,7 +100,7 @@ func TestGameExecuteMove(t *testing.T) {
 	assert.Nil(t, game.LastMove, "Expected nil LastMove at start")
 
 	// Execute a white pawn move
-	move1 := NewMove(FileE, Rank2, FileE, Rank3) // e2 to e3
+	move1 := NewMove(Sq("e2"), Sq("e3"))
 	success := game.ExecuteMove(move1)
 
 	assert.True(t, success, "Failed to execute valid move")
@@ -112,7 +109,8 @@ func TestGameExecuteMove(t *testing.T) {
 	assert.Len(t, game.MoveHistory, 1, "Expected 1 move in history")
 
 	assert.NotNil(t, game.LastMove, "LastMove should be set")
-	assert.Equal(t, FileE, game.LastMove.FromCol, "LastMove FromCol incorrect")
+	assert.Equal(t, Sq("e2"), game.LastMove.From, "LastMove From square incorrect")
+	assert.Equal(t, Sq("e3"), game.LastMove.To, "LastMove To square incorrect")
 
 	// Check turn switched
 	assert.Equal(t, Black, game.CurrentTurn, "Expected turn to be Black after white move")
@@ -121,7 +119,7 @@ func TestGameExecuteMove(t *testing.T) {
 	assert.Equal(t, 1, game.FullMoveNumber, "Expected full move number 1")
 
 	// Execute a black move
-	move2 := NewMove(FileE, Rank7, FileE, Rank5) // e7 to e5
+	move2 := NewMove(Sq("e7"), Sq("e5"))
 	game.ExecuteMove(move2)
 
 	// Now full move number should be 2
@@ -140,25 +138,25 @@ func TestGameHalfMoveClockCapture(t *testing.T) {
 	game.CurrentTurn = White
 
 	// Regular non-capture non-pawn move
-	game.ExecuteMove(NewMove(FileE, Rank5, FileE, Rank6)) // Rook e5-e4 (not capturing, not pawn)
+	game.ExecuteMove(NewMove(Sq("e5"), Sq("e4"))) // Rook e5-e4 (not capturing, not pawn)
 
 	assert.Equal(t, 1, game.HalfMoveClock, "Expected half-move clock to be 1 after non-capture move")
 
 	// Another regular move
 	game.CurrentTurn = Black
-	game.ExecuteMove(NewMove(FileD, Rank5, FileD, Rank6)) // Pawn d5-d4 (pawn move resets clock)
+	game.ExecuteMove(NewMove(Sq("d5"), Sq("d4"))) // Pawn d5-d4 (pawn move resets clock)
 
 	assert.Equal(t, 0, game.HalfMoveClock, "Expected half-move clock to reset to 0 on pawn move")
 
 	// Non-pawn move by white
 	game.CurrentTurn = White
-	game.ExecuteMove(NewMove(FileE, Rank6, FileE, Rank7)) // Rook e4-e3
+	game.ExecuteMove(NewMove(Sq("e4"), Sq("e3"))) // Rook e4-e3
 
 	assert.Equal(t, 1, game.HalfMoveClock, "Expected half-move clock to be 1 after another non-capture move")
 
 	// Capture move
 	game.CurrentTurn = Black
-	game.ExecuteMove(NewMove(FileD, Rank6, FileE, Rank7)) // Pawn d4 captures rook on e3
+	game.ExecuteMove(NewMove(Sq("d4"), Sq("e3"))) // Pawn d4 captures rook on e3
 
 	assert.Equal(t, 0, game.HalfMoveClock, "Expected half-move clock to reset to 0 on capture")
 }
@@ -170,7 +168,7 @@ func TestGameHalfMoveClockPawnMove(t *testing.T) {
 	assert.Equal(t, 0, game.HalfMoveClock, "Expected half-move clock 0")
 
 	// Pawn move should reset half-move clock
-	game.ExecuteMove(NewMove(FileE, Rank2, FileE, Rank4)) // White pawn e2-e4 (double move)
+	game.ExecuteMove(NewMove(Sq("e2"), Sq("e4"))) // White pawn e2-e4 (double move)
 
 	assert.Equal(t, 0, game.HalfMoveClock, "Expected half-move clock to reset on pawn move")
 }
@@ -196,16 +194,16 @@ func TestEnPassantMoveGeneration(t *testing.T) {
 	board.SetPieceAt("d7", BlackPawn)
 
 	// Black pawn moves to d5 (double move), creating en passant target at d6
-	board.MovePiece(FileD, Rank7, FileD, Rank5) // d7 to d5
+	board.MovePiece(Sq("d7"), Sq("d5")) // d7 to d5
 
 	// Now generate moves for white with en passant target
-	mg := NewMoveGeneratorWithEnPassant(board, FileD, Rank6) // d6 is en passant target
-	moves := mg.GenerateMovesForPiece(FileE, Rank5)
+	mg := NewMoveGeneratorWithEnPassant(board, Sq("d6")) // d6 is en passant target
+	moves := mg.GenerateMovesForPiece(Sq("e5"))
 
 	// Should have regular moves plus en passant capture (move to 3,2)
 	hasEnPassant := false
 	for _, move := range moves {
-		if move.ToCol == FileD && move.ToRow == Rank6 {
+		if move.To == Sq("d6") {
 			hasEnPassant = true
 		}
 	}
@@ -223,7 +221,7 @@ func TestEnPassantCaptureExecution(t *testing.T) {
 	game.CurrentTurn = Black
 
 	// Black moves pawn to d5 (double move)
-	move := NewMove(FileD, Rank7, FileD, Rank5)
+	move := NewMove(Sq("d7"), Sq("d5"))
 	game.ExecuteMove(move)
 
 	// Check piece is at d5
@@ -233,11 +231,10 @@ func TestEnPassantCaptureExecution(t *testing.T) {
 	assert.Equal(t, Black, piece.Color())
 
 	// Check en passant target is set
-	assert.Equal(t, FileD, game.EnPassantTargetCol)
-	assert.Equal(t, Rank6, game.EnPassantTargetRow)
+	assert.Equal(t, Sq("d6"), game.EnPassantTarget)
 
 	// White captures en passant (e5 to d6 en passant)
-	epMove := NewMove(FileE, Rank5, FileD, Rank6)
+	epMove := NewMove(Sq("e5"), Sq("d6"))
 	game.ExecuteMove(epMove)
 
 	// Check white pawn is at d6
@@ -258,7 +255,7 @@ func TestPawnPromotionForward(t *testing.T) {
 	game.Board.SetPieceAt("e7", WhitePawn)
 
 	// Move pawn forward to promotion rank (e1 = row 0)
-	move := NewPromotionMove(FileE, Rank7, FileE, Rank8, WhiteQueen)
+	move := NewPromotionMove(Sq("e7"), Sq("e8"), WhiteQueen)
 	game.ExecuteMove(move)
 
 	// Check pawn was replaced with Queen
@@ -282,7 +279,7 @@ func TestPawnPromotionCapture(t *testing.T) {
 	game.Board.SetPieceAt("d8", BlackPawn)
 
 	// Pawn captures and promotes to Rook
-	move := NewPromotionMove(FileE, Rank7, FileD, Rank8, WhiteRook)
+	move := NewPromotionMove(Sq("e7"), Sq("d8"), WhiteRook)
 	game.ExecuteMove(move)
 
 	// Check pawn was replaced with Rook on capture square
@@ -304,7 +301,7 @@ func TestPawnPromotionMoveGeneration(t *testing.T) {
 
 	// Generate moves
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(FileE, Rank7)
+	moves := mg.GenerateMovesForPiece(Sq("e7"))
 
 	// Should have 4 promotion moves (Queen, Rook, Bishop, Knight)
 	promotionMoves := []Move{}
@@ -337,7 +334,7 @@ func TestBlackPawnPromotionForward(t *testing.T) {
 	game.CurrentTurn = Black
 
 	// Move pawn forward to promotion rank (e8 = row 7)
-	move := NewPromotionMove(FileE, Rank2, FileE, Rank1, BlackQueen)
+	move := NewPromotionMove(Sq("e2"), Sq("e1"), BlackQueen)
 	game.ExecuteMove(move)
 
 	// Check pawn was replaced with Queen
@@ -361,7 +358,7 @@ func TestCastlingExecution(t *testing.T) {
 	game.CastlingRights = WhiteKingside
 
 	// Execute castling move (e1 to g1)
-	move := NewMove(FileE, Rank1, FileG, Rank1)
+	move := NewMove(Sq("e1"), Sq("g1"))
 	game.ExecuteMove(move)
 
 	// Check King position
@@ -388,7 +385,7 @@ func TestCastlingExecutionQueenside(t *testing.T) {
 	game.CastlingRights = WhiteQueenside
 
 	// Execute castling move (e1 to c1)
-	move := NewMove(FileE, Rank1, FileC, Rank1)
+	move := NewMove(Sq("e1"), Sq("c1"))
 	game.ExecuteMove(move)
 
 	// Check King position
@@ -643,26 +640,26 @@ func TestThreefoldRepetition(t *testing.T) {
 	game.PositionHistory = []uint64{game.ZobristHash}
 
 	// Move 1: White Rook a1-b1
-	game.ExecuteMove(NewMove(FileA, Rank1, FileB, Rank1))
+	game.ExecuteMove(NewMove(Sq("a1"), Sq("b1")))
 	// Move 1: Black Rook a8-b8
-	game.ExecuteMove(NewMove(FileA, Rank8, FileB, Rank8))
+	game.ExecuteMove(NewMove(Sq("a8"), Sq("b8")))
 
 	// Move 2: White Rook b1-a1 (2nd occurrence of initial position)
-	game.ExecuteMove(NewMove(FileB, Rank1, FileA, Rank1))
+	game.ExecuteMove(NewMove(Sq("b1"), Sq("a1")))
 	// Move 2: Black Rook b8-a8
-	game.ExecuteMove(NewMove(FileB, Rank8, FileA, Rank8))
+	game.ExecuteMove(NewMove(Sq("b8"), Sq("a8")))
 
 	assert.False(t, game.CanClaimDrawByThreefoldRepetition(), "Should not be draw yet (2 occurrences)")
 
 	// Move 3: White Rook a1-b1
-	game.ExecuteMove(NewMove(FileA, Rank1, FileB, Rank1))
+	game.ExecuteMove(NewMove(Sq("a1"), Sq("b1")))
 	// Move 3: Black Rook a8-b8
-	game.ExecuteMove(NewMove(FileA, Rank8, FileB, Rank8))
+	game.ExecuteMove(NewMove(Sq("a8"), Sq("b8")))
 
 	// Move 4: White Rook b1-a1 (3rd occurrence of initial position)
-	game.ExecuteMove(NewMove(FileB, Rank1, FileA, Rank1))
+	game.ExecuteMove(NewMove(Sq("b1"), Sq("a1")))
 	// Move 4: Black Rook b8-a8
-	game.ExecuteMove(NewMove(FileB, Rank8, FileA, Rank8))
+	game.ExecuteMove(NewMove(Sq("b8"), Sq("a8")))
 
 	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Should be draw (3 occurrences)")
 }
@@ -672,26 +669,26 @@ func TestThreefoldRepetitionFromStart(t *testing.T) {
 	// Start position is 1st occurrence
 
 	// Move 1: White Knight g1-f3
-	game.ExecuteMove(NewMove(FileG, Rank1, FileF, Rank3))
+	game.ExecuteMove(NewMove(Sq("g1"), Sq("f3")))
 	// Move 1: Black Knight g8-f6
-	game.ExecuteMove(NewMove(FileG, Rank8, FileF, Rank6))
+	game.ExecuteMove(NewMove(Sq("g8"), Sq("f6")))
 
 	// Move 2: White Knight f3-g1 (2nd occurrence of start position)
-	game.ExecuteMove(NewMove(FileF, Rank3, FileG, Rank1))
+	game.ExecuteMove(NewMove(Sq("f3"), Sq("g1")))
 	// Move 2: Black Knight f6-g8
-	game.ExecuteMove(NewMove(FileF, Rank6, FileG, Rank8))
+	game.ExecuteMove(NewMove(Sq("f6"), Sq("g8")))
 
 	assert.False(t, game.CanClaimDrawByThreefoldRepetition(), "Should not be draw yet (2 occurrences)")
 
 	// Move 3: White Knight g1-f3
-	game.ExecuteMove(NewMove(FileG, Rank1, FileF, Rank3))
+	game.ExecuteMove(NewMove(Sq("g1"), Sq("f3")))
 	// Move 3: Black Knight g8-f6
-	game.ExecuteMove(NewMove(FileG, Rank8, FileF, Rank6))
+	game.ExecuteMove(NewMove(Sq("g8"), Sq("f6")))
 
 	// Move 4: White Knight f3-g1 (3rd occurrence of start position)
-	game.ExecuteMove(NewMove(FileF, Rank3, FileG, Rank1))
+	game.ExecuteMove(NewMove(Sq("f3"), Sq("g1")))
 	// Move 4: Black Knight f6-g8
-	game.ExecuteMove(NewMove(FileF, Rank6, FileG, Rank8))
+	game.ExecuteMove(NewMove(Sq("f6"), Sq("g8")))
 
 	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Should be draw (3 occurrences)")
 }
@@ -780,10 +777,8 @@ func TestGetNoisyMoves(t *testing.T) {
 	// Expected: e4xd5 only. g1-f3 is quiet. e4-e5 is quiet.
 	assert.Len(t, noisyMoves, 1, "Expected exactly 1 noisy move")
 	if len(noisyMoves) > 0 {
-		assert.Equal(t, FileE, noisyMoves[0].FromCol)
-		assert.Equal(t, Rank4, noisyMoves[0].FromRow)
-		assert.Equal(t, FileD, noisyMoves[0].ToCol)
-		assert.Equal(t, Rank5, noisyMoves[0].ToRow)
+		assert.Equal(t, Sq("e4"), noisyMoves[0].From)
+		assert.Equal(t, Sq("d5"), noisyMoves[0].To)
 	}
 }
 
@@ -816,8 +811,7 @@ func TestGetNoisyMovesEnPassant(t *testing.T) {
 	game.Board.SetPieceAt("e8", BlackKing)
 
 	game.CurrentTurn = White
-	game.EnPassantTargetCol = FileD
-	game.EnPassantTargetRow = Rank6
+	game.EnPassantTarget = Sq("d6")
 
 	noisyMoves := game.GetNoisyMoves()
 
@@ -825,9 +819,8 @@ func TestGetNoisyMovesEnPassant(t *testing.T) {
 	// Note: e5-e6 is quiet, so not included.
 	assert.Len(t, noisyMoves, 1, "Expected 1 noisy move (en passant)")
 	if len(noisyMoves) > 0 {
-		assert.Equal(t, FileE, noisyMoves[0].FromCol)
-		assert.Equal(t, FileD, noisyMoves[0].ToCol)
-		assert.Equal(t, Rank6, noisyMoves[0].ToRow)
+		assert.Equal(t, Sq("e5"), noisyMoves[0].From)
+		assert.Equal(t, Sq("d6"), noisyMoves[0].To)
 	}
 }
 
@@ -851,7 +844,6 @@ func TestGetNoisyMovesPinnedCapture(t *testing.T) {
 	game.Board.SetPieceAt("h2", WhitePawn)
 
 	game.CurrentTurn = White
-
 
 	noisyMoves := game.GetNoisyMoves()
 

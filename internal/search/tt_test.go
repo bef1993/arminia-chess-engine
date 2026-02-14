@@ -18,7 +18,7 @@ func TestNewTranspositionTable(t *testing.T) {
 func TestStoreAndProbe(t *testing.T) {
 	tt := NewTranspositionTable(1)
 	hash := uint64(0x123456789ABC)
-	move := engine.NewMove(1, 1, 1, 3) // b2-b4
+	move := engine.NewMove(engine.Sq("b2"), engine.Sq("b4"))
 	depth := 5
 	score := 150
 	flag := FlagExact
@@ -51,8 +51,8 @@ func TestOverwrite(t *testing.T) {
 	// index = hash % size. If hash2 = hash1 + size, then (hash1 + size) % size == hash1 % size.
 	hash2 := hash1 + tt.size
 
-	move1 := engine.NewMove(0, 0, 0, 0)
-	move2 := engine.NewMove(1, 1, 1, 1)
+	move1 := engine.NewMove(0, 0)
+	move2 := engine.NewMove(1, 1)
 
 	// Store first
 	tt.Store(hash1, 1, 100, FlagExact, move1)
@@ -99,8 +99,8 @@ func TestResize(t *testing.T) {
 func TestStorePreservesDeeper(t *testing.T) {
 	tt := NewTranspositionTable(1)
 	hash := uint64(0x12345)
-	deepMove := engine.NewMove(1, 1, 1, 1)
-	shallowMove := engine.NewMove(2, 2, 2, 2)
+	deepMove := engine.NewMove(1, 1)
+	shallowMove := engine.NewMove(2, 2)
 
 	// 1. Store a deep search result (e.g. depth 5)
 	tt.Store(hash, 5, 100, FlagExact, deepMove)

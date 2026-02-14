@@ -13,14 +13,14 @@ func TestQuiescence_AvoidsBadCapture(t *testing.T) {
 	game.Board.Clear()
 
 	// Setup:
-	// White: King e1, Queen d1, Pawn h2 (to provide a quiet move)
+	// White: King g1, Queen h4, Pawn h2 (to provide a quiet move)
 	// Black: King e8, Rook d8 (protected by Knight), Knight c6
 	// White to move.
 	// Bad capture: Qxd8+ (Exchange Q(9) for R(5). Net -4).
 	// Quiet move: h2h3 (Score ~ +1 due to material advantage Q vs R+N).
 
-	game.Board.SetPieceAt("e1", engine.WhiteKing)
-	game.Board.SetPieceAt("d1", engine.WhiteQueen)
+	game.Board.SetPieceAt("g1", engine.WhiteKing)
+	game.Board.SetPieceAt("h4", engine.WhiteQueen)
 	game.Board.SetPieceAt("h2", engine.WhitePawn)
 
 	game.Board.SetPieceAt("e8", engine.BlackKing)
@@ -34,7 +34,7 @@ func TestQuiescence_AvoidsBadCapture(t *testing.T) {
 	// With QS, negamax sees Qxd8 -> -3 (N vs nothing) because it sees Nxd8.
 	move, eval, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 1}, nil)
 
-	assert.NotEqual(t, "d1d8", move.String(), "Quiescence search should avoid bad capture d1d8")
+	assert.NotEqual(t, "h4d8", move.String(), "Quiescence search should avoid bad capture h4d8")
 	assert.Greater(t, eval, 0, "eval should be greater than 0")
 }
 
@@ -49,8 +49,7 @@ func TestQuiescence_IncludesEnPassant(t *testing.T) {
 	game.Board.SetPieceAt("d5", engine.BlackPawn)
 
 	game.CurrentTurn = engine.White
-	game.EnPassantTargetCol = engine.FileD
-	game.EnPassantTargetRow = engine.Rank6
+	game.EnPassantTarget = engine.Sq("d6")
 
 	// Evaluate at root should be 0 (equal material).
 	// Quiescence should find exd6 e.p. which wins a pawn.

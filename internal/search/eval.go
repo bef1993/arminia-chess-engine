@@ -32,15 +32,15 @@ func Evaluate(game *engine.Game) int {
 // Positive values indicate an advantage for White,
 // negative values indicate an advantage for Black.
 func countMaterial(board *engine.Board) (score int) {
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			piece := board.GetPiece(col, row)
-			if piece.Color() == engine.White {
-				score += piece.Value()
-			} else {
-				score -= piece.Value()
-			}
-
+	for sq := 0; sq < 64; sq++ {
+		piece := board.GetPiece(sq)
+		if piece == engine.NoPiece {
+			continue
+		}
+		if piece.Color() == engine.White {
+			score += piece.Value()
+		} else {
+			score -= piece.Value()
 		}
 	}
 	return score

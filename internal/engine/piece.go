@@ -6,13 +6,14 @@ type Color int
 const (
 	White Color = iota
 	Black
+	AnyColor // Used for occupancy bitboard
 )
 
 // PieceType represents the kind of piece
-type PieceType int
+type PieceType int8
 
 const (
-	NoType PieceType = iota
+	NoType PieceType = iota - 1
 	Pawn
 	Knight
 	Bishop
@@ -36,7 +37,7 @@ func (p PieceType) White() Piece {
 }
 
 func (p PieceType) Black() Piece {
-	return Piece(p + King)
+	return Piece(int(p) + int(BlackPawn))
 }
 
 func (p PieceType) FromColor(color Color) Piece {
@@ -47,10 +48,10 @@ func (p PieceType) FromColor(color Color) Piece {
 }
 
 // Piece represents the type of chess piece
-type Piece uint8
+type Piece int8
 
 const (
-	NoPiece Piece = iota
+	NoPiece   Piece = iota -1
 	WhitePawn
 	WhiteKnight
 	WhiteBishop

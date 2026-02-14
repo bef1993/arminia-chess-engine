@@ -30,8 +30,9 @@ func orderMoves(game *engine.Game, moves []engine.Move, ttMove engine.Move) {
 		}
 
 		score := 0
-		attacker := game.Board.GetPiece(move.FromCol, move.FromRow)
-		victim := game.Board.GetPiece(move.ToCol, move.ToRow)
+
+		attacker := game.Board.GetPiece(move.From)
+		victim := game.Board.GetPiece(move.To)
 		if victim != engine.NoPiece {
 			// MVV-LVA score: 10 * victim - attacker
 			// Offset by 1000000 to prioritize over quiet moves
@@ -41,7 +42,7 @@ func orderMoves(game *engine.Game, moves []engine.Move, ttMove engine.Move) {
 				attackerValue = engine.QueenValue + 100 // Ensure king is the "least valuable" attacker.
 			}
 			score = 1000000 + (victim.Value() * 10) - attackerValue
-		} else if attacker.Type() == engine.Pawn && move.FromCol != move.ToCol && move.ToCol == game.EnPassantTargetCol && move.ToRow == game.EnPassantTargetRow {
+		} else if attacker.Type() == engine.Pawn && move.To == game.EnPassantTarget && (move.From%8) != (move.To%8) {
 			// En Passant capture (victim is Pawn)
 			score = 1000000 + (engine.PawnValue * 10) - engine.PawnValue
 		}

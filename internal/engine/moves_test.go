@@ -18,18 +18,11 @@ func TestGeneratePawnMoves(t *testing.T) {
 	board := NewBoard()
 	mg := NewMoveGenerator(board)
 
-	// Test white pawn at (4, 6) - should have 2 forward moves
-	moves := mg.GenerateMovesForPiece(FileE, Rank2)
+	moves := mg.GenerateMovesForPiece(Sq("e2"))
 
 	assert.Len(t, moves, 2, "Expected 2 moves for white pawn at starting position")
-
-	// Both moves should be forward
-	for _, move := range moves {
-		assert.Equal(t, FileE, move.FromCol, "Move has wrong source col")
-		assert.Equal(t, Rank2, move.FromRow, "Move has wrong source row")
-		assert.Equal(t, FileE, move.ToCol, "Pawn should not move horizontally")
-		assert.True(t, move.ToRow == Rank3 || move.ToRow == Rank4, "Expected pawn to move to row 5 or 4")
-	}
+	assert.Contains(t, moves, Move{From: Sq("e2"), To: Sq("e3"), PromotionPiece: NoPiece}, "Expected move from e2 to e3")
+	assert.Contains(t, moves, Move{From: Sq("e2"), To: Sq("e4"), PromotionPiece: NoPiece}, "Expected move from e2 to e4")
 }
 
 func TestGenerateKnightMoves(t *testing.T) {
@@ -37,14 +30,14 @@ func TestGenerateKnightMoves(t *testing.T) {
 	mg := NewMoveGenerator(board)
 
 	// Test white knight at (1, 7) - should have 2 moves (can't move forward much)
-	moves := mg.GenerateMovesForPiece(FileB, Rank1)
+	moves := mg.GenerateMovesForPiece(Sq("b1"))
 
 	assert.Len(t, moves, 2, "Expected 2 moves for white knight at starting position")
 
 	// Remove pawn at d2 to allow knight to move there
-	board.RemovePieceAt("d2")
+	board.SetPieceAt("d2", NoPiece)
 
-	moves = mg.GenerateMovesForPiece(FileB, Rank1)
+	moves = mg.GenerateMovesForPiece(Sq("b1"))
 
 	// Knight should have 3 moves (a3, c3, d2)
 	assert.Len(t, moves, 3, "Expected 3 moves for knight after removing pawn at d2")
@@ -56,15 +49,15 @@ func TestGenerateBishopMovesFromMiddle(t *testing.T) {
 	board.SetPieceAt("d5", WhiteBishop)
 	mg := NewMoveGenerator(board)
 
-	moves := mg.GenerateMovesForPiece(3, 3)
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 
 	// Bishop in the middle should have 13 moves (4 diagonals with 3 or 4 squares each)
 	assert.Len(t, moves, 13, "Expected 13 moves for bishop in center")
 
 	// Verify all moves are diagonal
 	for _, move := range moves {
-		colDiff := move.ToCol - move.FromCol
-		rowDiff := move.ToRow - move.FromRow
+		colDiff := (move.To % 8) - (move.From % 8)
+		rowDiff := (move.To / 8) - (move.From / 8)
 
 		assert.True(t, colDiff != 0 && rowDiff != 0 && (colDiff == rowDiff || colDiff == -rowDiff), "Invalid bishop move")
 	}
@@ -76,15 +69,15 @@ func TestGenerateRookMovesFromMiddle(t *testing.T) {
 	board.SetPieceAt("d5", WhiteRook)
 	mg := NewMoveGenerator(board)
 
-	moves := mg.GenerateMovesForPiece(3, 3)
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 
 	// Rook in the middle should have 14 moves (4 directions with 3 or 4 squares each)
 	assert.Len(t, moves, 14, "Expected 14 moves for rook in center")
 
 	// Verify all moves are horizontal or vertical
 	for _, move := range moves {
-		colDiff := move.ToCol - move.FromCol
-		rowDiff := move.ToRow - move.FromRow
+		colDiff := (move.To % 8) - (move.From % 8)
+		rowDiff := (move.To / 8) - (move.From / 8)
 
 		assert.True(t, (colDiff == 0 && rowDiff != 0) || (colDiff != 0 && rowDiff == 0), "Invalid rook move")
 	}
@@ -96,7 +89,7 @@ func TestGenerateQueenMovesFromMiddle(t *testing.T) {
 	board.SetPieceAt("d5", WhiteQueen)
 	mg := NewMoveGenerator(board)
 
-	moves := mg.GenerateMovesForPiece(3, 3)
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 
 	// Queen should have 27 moves (combination of rook and bishop moves)
 	assert.Len(t, moves, 27, "Expected 27 moves for queen in center")
@@ -108,27 +101,27 @@ func TestGenerateKingMoves(t *testing.T) {
 	board.SetPieceAt("d5", WhiteKing)
 	mg := NewMoveGenerator(board)
 
-	moves := mg.GenerateMovesForPiece(3, 3)
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 
 	// King in the middle should have 8 moves
 	assert.Len(t, moves, 8, "Expected 8 moves for king in center")
 
 	// Verify all moves are 1 square away
 	for _, move := range moves {
-		colDiff := move.ToCol - move.FromCol
-		rowDiff := move.ToRow - move.FromRow
+		colDiff := (move.To % 8) - (move.From % 8)
+		rowDiff := (move.To / 8) - (move.From / 8)
 
 		assert.True(t, colDiff >= -1 && colDiff <= 1 && rowDiff >= -1 && rowDiff <= 1, "King moved more than 1 square")
 	}
 }
 
 func TestGenerateKingMovesCorner(t *testing.T) {
-	board := NewBoard()
+	board := NewEmptyBoard()
 	// Place a white king in the corner
-	board.SetPieceAt("a8", WhiteKing)
+	board.SetPieceAt("a1", WhiteKing)
 	mg := NewMoveGenerator(board)
 
-	moves := mg.GenerateMovesForPiece(FileA, Rank8)
+	moves := mg.GenerateMovesForPiece(Sq("a1"))
 
 	// King in corner should have 3 moves
 	assert.Len(t, moves, 3, "Expected 3 moves for king in corner")
@@ -139,7 +132,7 @@ func TestGenerateMovesForNilPiece(t *testing.T) {
 	mg := NewMoveGenerator(board)
 
 	// Try to generate moves for empty square
-	moves := mg.GenerateMovesForPiece(FileD, Rank4)
+	moves := mg.GenerateMovesForPiece(Sq("d4"))
 
 	assert.Empty(t, moves, "Expected 0 moves for empty square")
 }
@@ -154,7 +147,7 @@ func TestPawnCapturesDiagonally(t *testing.T) {
 	board.SetPieceAt("e5", BlackPawn)
 
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(FileD, Rank4)
+	moves := mg.GenerateMovesForPiece(Sq("d4"))
 
 	// Should have 3 moves: 1 forward, 2 captures
 	assert.Len(t, moves, 3, "Expected 3 moves (1 forward + 2 captures)")
@@ -162,10 +155,10 @@ func TestPawnCapturesDiagonally(t *testing.T) {
 	// Verify at least one move goes to (2, 3) and one to (4, 3)
 	captureFound := [2]bool{false, false}
 	for _, move := range moves {
-		if move.ToCol == 2 && move.ToRow == 3 {
+		if move.To == Sq("c5") {
 			captureFound[0] = true
 		}
-		if move.ToCol == 4 && move.ToRow == 3 {
+		if move.To == Sq("e5") {
 			captureFound[1] = true
 		}
 	}
@@ -183,65 +176,47 @@ func TestBlockedPawnCannotMove(t *testing.T) {
 	board.SetPieceAt("d4", BlackPawn) // Block double move
 
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(FileD, Rank2)
+	moves := mg.GenerateMovesForPiece(Sq("d2"))
 
 	assert.Empty(t, moves, "Expected 0 moves for blocked pawn")
 }
 
 func TestBishopBlockedByOwnPiece(t *testing.T) {
 	board := NewEmptyBoard()
-	// Place a white bishop at (3, 3)
+
 	board.SetPieceAt("d5", WhiteBishop)
-	// Block one diagonal with own piece at (5, 5)
+	// Block one diagonal
 	board.SetPieceAt("f3", WhitePawn)
 
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(3, 3)
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 
-	// Verify (5, 5) and beyond on that diagonal are NOT in the moves
+	// Verify f3 and beyond on that diagonal are NOT in the moves
 	for _, move := range moves {
-		assert.False(t, move.ToCol == 5 && move.ToRow == 5, "Bishop should not move to square occupied by own piece")
-		assert.False(t, move.ToCol == 6 && move.ToRow == 6, "Bishop should not move past own piece (to 6,6)")
-		assert.False(t, move.ToCol == 7 && move.ToRow == 7, "Bishop should not move past own piece (to 7,7)")
+		assert.False(t, move.To == Sq("f3"), "Bishop should not move to square occupied by own piece")
+		assert.False(t, move.To == Sq("g2"), "Bishop should not move past own piece")
+		assert.False(t, move.To == Sq("h1"), "Bishop should not move past own piece")
 	}
 
-	// Verify it can still move on other diagonals - at least (1,1)
-	foundOtherMove := false
-	for _, move := range moves {
-		if move.ToCol == 1 && move.ToRow == 1 {
-			foundOtherMove = true
-		}
-	}
-	assert.True(t, foundOtherMove, "Bishop should still be able to move on unblocked diagonals")
+
+	assert.Equal(t, 10, len(moves), "Bishop should have exactly 10 available moves")
 }
 
 func TestBishopStopsAtEnemyPiece(t *testing.T) {
 	board := NewEmptyBoard()
-	// Place a white bishop at (3, 3)
+
 	board.SetPieceAt("d5", WhiteBishop)
-	// Place black piece to capture at (5, 5)
+	// Place black piece to capture
 	board.SetPieceAt("f3", BlackPawn)
 	// Place another piece beyond to verify bishop stops at capture
 	board.SetPieceAt("g2", BlackPawn)
 
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(3, 3)
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 
-	// Bishop should reach (5,5) but NOT (6,6)
-	canCapture := false
-	canPassThrough := false
-
-	for _, move := range moves {
-		if move.ToCol == 5 && move.ToRow == 5 {
-			canCapture = true
-		}
-		if move.ToCol == 6 && move.ToRow == 6 {
-			canPassThrough = true
-		}
-	}
-
-	assert.True(t, canCapture, "Bishop should be able to capture enemy piece")
-	assert.False(t, canPassThrough, "Bishop should not move past captured piece")
+	assert.Contains(t, moves, Move{From: Sq("d5"), To: Sq("f3"), PromotionPiece: NoPiece}, "Expected move to capture enemy piece at f3")
+	assert.NotContains(t, moves, Move{From: Sq("d5"), To: Sq("g2"), PromotionPiece: NoPiece}, "Expected no move to square occupied by enemy piece")
+	assert.Equal(t, 11, len(moves), "Bishop should have exactly 11 available moves (including capture)")
 }
 
 func TestRookBlockedAlongRank(t *testing.T) {
@@ -252,17 +227,16 @@ func TestRookBlockedAlongRank(t *testing.T) {
 	board.SetPieceAt("g5", BlackPawn)
 
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(3, 3)
-
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 	// Rook should reach (6,3) but NOT (7,3)
 	canCapture := false
 	canPassThrough := false
 
 	for _, move := range moves {
-		if move.ToCol == 6 && move.ToRow == 3 {
+		if move.To == Sq("g5") {
 			canCapture = true
 		}
-		if move.ToCol == 7 && move.ToRow == 3 {
+		if move.To == Sq("h5") {
 			canPassThrough = true
 		}
 	}
@@ -281,17 +255,17 @@ func TestRookBlockedAlongFile(t *testing.T) {
 	board.SetPieceAt("d8", BlackPawn)
 
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(3, 4)
+	moves := mg.GenerateMovesForPiece(Sq("d4"))
 
 	// Rook should reach (3,1) but NOT (3,0)
 	canCapture := false
 	canPassThrough := false
 
 	for _, move := range moves {
-		if move.ToCol == 3 && move.ToRow == 1 {
+		if move.To == Sq("d7") {
 			canCapture = true
 		}
-		if move.ToCol == 3 && move.ToRow == 0 {
+		if move.To == Sq("d8") {
 			canPassThrough = true
 		}
 	}
@@ -311,7 +285,7 @@ func TestQueenMultipleBlockingDirections(t *testing.T) {
 	board.SetPieceAt("b5", BlackPawn) // Block leftward rank
 
 	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(3, 3)
+	moves := mg.GenerateMovesForPiece(Sq("d5"))
 
 	// Verify specific blocking behavior
 	canCaptureDown := false
@@ -320,16 +294,17 @@ func TestQueenMultipleBlockingDirections(t *testing.T) {
 	canCaptureLeft := false
 
 	for _, move := range moves {
-		if move.ToCol == 3 && move.ToRow == 1 {
+		if move.To == Sq("d7") {
+
 			canCaptureDown = true
 		}
-		if move.ToCol == 5 && move.ToRow == 3 {
+		if move.To == Sq("f5") {
 			canReachRightOwn = true // Should NOT be in moves
 		}
-		if move.ToCol == 5 && move.ToRow == 5 {
+		if move.To == Sq("f3") {
 			canCaptureDiagonal = true
 		}
-		if move.ToCol == 1 && move.ToRow == 3 {
+		if move.To == Sq("b5") {
 			canCaptureLeft = true
 		}
 	}
@@ -350,17 +325,17 @@ func TestCastlingMoves(t *testing.T) {
 
 	// 1. Test basic castling rights (both sides available)
 	// We use NewMoveGeneratorFull to inject castling rights
-	mg := NewMoveGeneratorFull(board, -1, -1, WhiteKingside|WhiteQueenside)
-	moves := mg.GenerateMovesForPiece(FileE, Rank1)
+	mg := NewMoveGeneratorFull(board, -1, WhiteKingside|WhiteQueenside)
+	moves := mg.GenerateMovesForPiece(Sq("e1"))
 
 	hasKingside := false
 	hasQueenside := false
 	for _, m := range moves {
-		if m.FromCol == FileE && m.FromRow == Rank1 {
-			if m.ToCol == FileG && m.ToRow == Rank1 {
+		if m.From == Sq("e1") {
+			if m.To == Sq("g1") {
 				hasKingside = true
 			}
-			if m.ToCol == FileC && m.ToRow == Rank1 {
+			if m.To == Sq("c1") {
 				hasQueenside = true
 			}
 		}
@@ -371,33 +346,31 @@ func TestCastlingMoves(t *testing.T) {
 
 	// 2. Test blocked path
 	board.SetPieceAt("f1", WhiteBishop)
-	mg = NewMoveGeneratorFull(board, -1, -1, WhiteKingside)
-	moves = mg.GenerateMovesForPiece(FileE, Rank1)
-
+	mg = NewMoveGeneratorFull(board, -1, WhiteKingside)
+	moves = mg.GenerateMovesForPiece(Sq("e1"))
 	for _, m := range moves {
-		assert.False(t, m.ToCol == FileG && m.ToRow == Rank1, "Should not castle kingside when blocked at f1")
+		assert.False(t, m.To == Sq("g1"), "Should not castle kingside when blocked at f1")
 	}
 	board.RemovePieceAt("f1")
 
 	// 3. Test path attacked (castling through check)
 	// Place a black rook at f2 to attack f1
 	board.SetPieceAt("f7", BlackRook)
-	mg = NewMoveGeneratorFull(board, -1, -1, WhiteKingside)
-	moves = mg.GenerateMovesForPiece(FileE, Rank1)
+	mg = NewMoveGeneratorFull(board, -1, WhiteKingside)
+	moves = mg.GenerateMovesForPiece(Sq("e1"))
 
 	for _, m := range moves {
-		assert.False(t, m.ToCol == FileG && m.ToRow == Rank1, "Should not castle kingside when f1 is attacked")
+		assert.False(t, m.To == Sq("g1"), "Should not castle kingside when f1 is attacked")
 	}
-	board.RemovePieceAt("f7") // Clear attacker
+	board.RemovePieceAt("f7")
 
 	// 4. Test King in check
 	// Place a black rook at e2 to attack e1 (King's square)
 	board.SetPieceAt("e7", BlackRook)
-	mg = NewMoveGeneratorFull(board, -1, -1, WhiteKingside)
-	moves = mg.GenerateMovesForPiece(FileE, Rank1)
-
+	mg = NewMoveGeneratorFull(board, -1, WhiteKingside)
+	moves = mg.GenerateMovesForPiece(Sq("e1"))
 	for _, m := range moves {
-		assert.False(t, m.ToCol == FileG && m.ToRow == Rank1, "Should not castle when King is in check")
+		assert.False(t, m.To == Sq("g1"), "Should not castle when King is in check")
 	}
 }
 
@@ -409,10 +382,10 @@ func TestCastlingQueensideRules(t *testing.T) {
 
 	// Helper to check if queenside castling is generated
 	hasQueensideCastling := func() bool {
-		mg := NewMoveGeneratorFull(board, -1, -1, WhiteQueenside)
-		moves := mg.GenerateMovesForPiece(FileE, Rank1)
+		mg := NewMoveGeneratorFull(board, -1, WhiteQueenside)
+		moves := mg.GenerateMovesForPiece(Sq("e1"))
 		for _, m := range moves {
-			if m.ToCol == FileC && m.ToRow == Rank1 {
+			if m.To == Sq("c1") {
 				return true
 			}
 		}
@@ -462,9 +435,9 @@ func TestCastlingBlack(t *testing.T) {
 
 	// Test blocked path for Black Kingside
 	board.SetPieceAt("f8", BlackBishop)
-	mg := NewMoveGeneratorFull(board, -1, -1, BlackKingside)
-	moves := mg.GenerateMovesForPiece(FileE, Rank8)
+	mg := NewMoveGeneratorFull(board, -1, BlackKingside)
+	moves := mg.GenerateMovesForPiece(Sq("e8"))
 	for _, m := range moves {
-		assert.False(t, m.ToCol == FileG && m.ToRow == Rank8, "Black should not castle kingside when blocked")
+		assert.False(t, m.To == Sq("g8"), "Black should not castle kingside when blocked")
 	}
 }

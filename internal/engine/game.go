@@ -14,13 +14,12 @@ const (
 
 // GameState captures the state of the game before a move is made, for undo purposes
 type GameState struct {
-	CastlingRights     CastlingRights
-	EnPassantTargetCol int
-	EnPassantTargetRow int
-	HalfMoveClock      int
-	CapturedPiece      Piece
-	PositionHistory    []uint64
-	ZobristHash        uint64
+	CastlingRights  CastlingRights
+	EnPassantTarget int // Square index, -1 if none
+	HalfMoveClock   int
+	CapturedPiece   Piece
+	PositionHistory []uint64
+	ZobristHash     uint64
 }
 
 // Game represents a chess game
@@ -47,11 +46,10 @@ func NewGame() *Game {
 		FullMoveNumber: 1,
 		StateHistory:   []GameState{},
 		GameState: GameState{
-			EnPassantTargetCol: -1,
-			EnPassantTargetRow: -1,
-			CastlingRights:     AllCastling,
-			HalfMoveClock:      0,
-			PositionHistory:    []uint64{},
+			EnPassantTarget: -1,
+			CastlingRights:  AllCastling,
+			HalfMoveClock:   0,
+			PositionHistory: []uint64{},
 		},
 	}
 	g.ZobristHash = g.ComputeZobristHash()
@@ -71,7 +69,7 @@ func (g *Game) SwitchTurn() {
 // ExecuteMove executes a move on the board and updates game state
 // Returns true if move was successful, false otherwise
 func (g *Game) ExecuteMove(move Move) bool {
-	piece := g.Board.GetPiece(move.FromCol, move.FromRow)
+	piece := g.Board.GetPiece(move.From)
 	if piece == NoPiece || piece.Color() != g.CurrentTurn {
 		return false
 	}
@@ -82,83 +80,81 @@ func (g *Game) ExecuteMove(move Move) bool {
 	// XOR out old state (Castling, EP, Turn)
 	// We use the current state values before they are modified
 	hash ^= zobristCastling[g.CastlingRights]
-	if g.EnPassantTargetCol != -1 {
-		hash ^= zobristEnPassant[g.EnPassantTargetCol]
+	if g.EnPassantTarget != -1 {
+		hash ^= zobristEnPassant[g.EnPassantTarget%8] // Use column for hash
 	} else {
 		hash ^= zobristEnPassant[8]
 	}
 	hash ^= zobristBlackTurn // Toggle turn
 
 	// XOR out moving piece from source
-	srcSq := move.FromRow*8 + move.FromCol
-	hash ^= zobristPiece[piece.Color()][piece.Type()][srcSq]
+	hash ^= zobristPiece[piece.Color()][piece.Type()][move.From]
 
 	// XOR in moving piece at dest (we'll handle promotion replacement later)
 	// Note: If it's a capture, we'll XOR out the captured piece below
-	dstSq := move.ToRow*8 + move.ToCol
-	hash ^= zobristPiece[piece.Color()][piece.Type()][dstSq]
+	hash ^= zobristPiece[piece.Color()][piece.Type()][move.To]
 
 	// Determine move type from board state
-	targetPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
+	targetPiece := g.Board.GetPiece(move.To)
 	isCapture := targetPiece != NoPiece
 	isPawnMove := piece.Type() == Pawn
 
 	// Detect en passant capture (pawn moving diagonally to empty square at en passant target)
 	isEnPassant := isPawnMove &&
-		move.FromCol != move.ToCol &&
-		targetPiece == NoPiece &&
-		move.ToCol == g.EnPassantTargetCol &&
-		move.ToRow == g.EnPassantTargetRow
+		move.To == g.EnPassantTarget &&
+		targetPiece == NoPiece
 
 	// Handle Capture (Remove target piece from dest)
 	if isCapture {
-		hash ^= zobristPiece[targetPiece.Color()][targetPiece.Type()][dstSq]
+		hash ^= zobristPiece[targetPiece.Color()][targetPiece.Type()][move.To]
 	}
 
 	// Detect castling (King moving 2 squares horizontally)
-	isCastling := piece.Type() == King && (move.ToCol-move.FromCol == 2 || move.FromCol-move.ToCol == 2)
+	isCastling := piece.Type() == King && (move.To == move.From+2 || move.To == move.From-2)
 
 	// Capture state before changes
 	state := g.GameState // This is a copy.
 	state.CapturedPiece = targetPiece
 	if isEnPassant {
-		state.CapturedPiece = g.Board.GetPiece(move.ToCol, move.FromRow)
+
 	}
 
 	// Handle en passant capture (remove attacked pawn)
 	if isEnPassant {
+		// Captured pawn is at [ToCol, FromRow]
+		captureSq := (move.From/8)*8 + (move.To % 8)
+		state.CapturedPiece = g.Board.GetPiece(captureSq)
+
 		isCapture = true
-		epCaptureRow := move.FromRow
-		g.Board.SetPiece(move.ToCol, epCaptureRow, NoPiece)
+		g.Board.SetPiece(captureSq, NoPiece)
 
 		// Update Hash: Remove captured EP pawn
 		epPawn := state.CapturedPiece
-		epSq := epCaptureRow*8 + move.ToCol
-		hash ^= zobristPiece[epPawn.Color()][epPawn.Type()][epSq]
+		hash ^= zobristPiece[epPawn.Color()][epPawn.Type()][captureSq]
 	}
 
 	// Execute the move
-	g.Board.MovePiece(move.FromCol, move.FromRow, move.ToCol, move.ToRow)
+	g.Board.MovePiece(move.From, move.To)
 
 	// Handle castling rook movement
 	if isCastling {
-		row := move.FromRow
-		if move.ToCol > move.FromCol { // Kingside
+		row := move.From / 8
+		if move.To > move.From { // Kingside
 			// Move rook from H-file (7) to F-file (5)
-			g.Board.MovePiece(FileH, row, FileF, row)
+			g.Board.MovePiece(row*8+FileH, row*8+FileF)
 
 			// Update Hash: Move Rook
-			rook := g.Board.GetPiece(FileF, row)
+			rook := g.Board.GetPiece(row*8 + FileF)
 			oldRookSq := row*8 + FileH
 			newRookSq := row*8 + FileF
 			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
 			hash ^= zobristPiece[rook.Color()][rook.Type()][newRookSq]
 		} else { // Queenside
 			// Move rook from A-file (0) to D-file (3)
-			g.Board.MovePiece(FileA, row, FileD, row)
+			g.Board.MovePiece(row*8+FileA, row*8+FileD)
 
 			// Update Hash: Move Rook
-			rook := g.Board.GetPiece(FileD, row)
+			rook := g.Board.GetPiece(row*8 + FileD)
 			oldRookSq := row*8 + FileA
 			newRookSq := row*8 + FileD
 			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
@@ -168,14 +164,14 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 	// Handle pawn promotion
 	if move.PromotionPiece != NoPiece {
-		g.Board.SetPiece(move.ToCol, move.ToRow, move.PromotionPiece)
+		g.Board.SetPiece(move.To, move.PromotionPiece)
 
 		// Update Hash: Replace Pawn with Promoted Piece
 		// We already added the Pawn at dstSq above. Remove it.
-		hash ^= zobristPiece[piece.Color()][piece.Type()][dstSq]
+		hash ^= zobristPiece[piece.Color()][piece.Type()][move.To]
 		// Add promoted piece
 		promPiece := move.PromotionPiece
-		hash ^= zobristPiece[promPiece.Color()][promPiece.Type()][dstSq]
+		hash ^= zobristPiece[promPiece.Color()][promPiece.Type()][move.To]
 	}
 
 	// Update castling rights if king or rook moved
@@ -189,7 +185,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	}
 
 	// Detect double pawn move (creates en passant target)
-	rowDiff := move.ToRow - move.FromRow
+	rowDiff := (move.To / 8) - (move.From / 8)
 	if rowDiff < 0 {
 		rowDiff = -rowDiff
 	}
@@ -197,11 +193,9 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 	// Update en passant target
 	if isDoublePawnMove {
-		g.EnPassantTargetCol = move.ToCol
-		g.EnPassantTargetRow = move.FromRow + (move.ToRow-move.FromRow)/2
+		g.EnPassantTarget = (move.From + move.To) / 2
 	} else {
-		g.EnPassantTargetCol = -1
-		g.EnPassantTargetRow = -1
+		g.EnPassantTarget = -1
 	}
 
 	// Add to move history
@@ -218,8 +212,8 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 	// XOR in new state (Castling, EP)
 	hash ^= zobristCastling[g.CastlingRights]
-	if g.EnPassantTargetCol != -1 {
-		hash ^= zobristEnPassant[g.EnPassantTargetCol]
+	if g.EnPassantTarget != -1 {
+		hash ^= zobristEnPassant[g.EnPassantTarget%8]
 	} else {
 		hash ^= zobristEnPassant[8]
 	}
@@ -244,6 +238,11 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 // updateCastlingRights revokes castling rights if king or rook moves or is captured
 func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
+	fromCol := move.From % 8
+	fromRow := move.From / 8
+	toCol := move.To % 8
+	toRow := move.To / 8
+
 	if piece.Type() == King {
 		// King moved - revoke all castling rights for this color
 		if piece.Color() == White {
@@ -254,15 +253,15 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	} else if piece.Type() == Rook {
 		// Rook moved - revoke castling on that side
 		if piece.Color() == White {
-			if move.FromCol == FileA && move.FromRow == Rank1 {
+			if fromCol == FileA && fromRow == Rank1 {
 				g.CastlingRights &= ^WhiteQueenside
-			} else if move.FromCol == FileH && move.FromRow == Rank1 {
+			} else if fromCol == FileH && fromRow == Rank1 {
 				g.CastlingRights &= ^WhiteKingside
 			}
 		} else {
-			if move.FromCol == FileA && move.FromRow == Rank8 {
+			if fromCol == FileA && fromRow == Rank8 {
 				g.CastlingRights &= ^BlackQueenside
-			} else if move.FromCol == FileH && move.FromRow == Rank8 {
+			} else if fromCol == FileH && fromRow == Rank8 {
 				g.CastlingRights &= ^BlackKingside
 			}
 		}
@@ -271,15 +270,15 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	// If a rook is captured, revoke castling rights
 	if targetPiece != NoPiece && targetPiece.Type() == Rook {
 		if targetPiece.Color() == White {
-			if move.ToCol == FileA && move.ToRow == Rank1 {
+			if toCol == FileA && toRow == Rank1 {
 				g.CastlingRights &= ^WhiteQueenside
-			} else if move.ToCol == FileH && move.ToRow == Rank1 {
+			} else if toCol == FileH && toRow == Rank1 {
 				g.CastlingRights &= ^WhiteKingside
 			}
 		} else {
-			if move.ToCol == FileA && move.ToRow == Rank8 {
+			if toCol == FileA && toRow == Rank8 {
 				g.CastlingRights &= ^BlackQueenside
-			} else if move.ToCol == FileH && move.ToRow == Rank8 {
+			} else if toCol == FileH && toRow == Rank8 {
 				g.CastlingRights &= ^BlackKingside
 			}
 		}
@@ -319,41 +318,39 @@ func (g *Game) UnmakeMove() {
 	// Restore pieces on board
 	// 1. Move the piece back from To -> From
 	// Note: The piece at ToCol, ToRow is the one that moved (or promoted piece)
-	movedPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
-	g.Board.MovePiece(move.ToCol, move.ToRow, move.FromCol, move.FromRow)
+	movedPiece := g.Board.GetPiece(move.To)
+	g.Board.MovePiece(move.To, move.From)
 
 	// 2. If it was a promotion, revert the piece at From to a Pawn
 	if move.PromotionPiece != NoPiece {
-		pawn := WhitePawn
-		if g.CurrentTurn == Black {
-			pawn = BlackPawn
-		}
-		g.Board.SetPiece(move.FromCol, move.FromRow, pawn)
+		pawn := Pawn.FromColor(move.PromotionPiece.Color())
+		g.Board.SetPiece(move.From, pawn)
 		movedPiece = pawn // Update for En Passant check below
 	}
 
 	// 3. Restore captured piece
 	if state.CapturedPiece != NoPiece {
 		// Check if it was En Passant
-		if movedPiece.Type() == Pawn && move.ToCol == g.EnPassantTargetCol && move.ToRow == g.EnPassantTargetRow {
+		if movedPiece.Type() == Pawn && move.To == g.EnPassantTarget {
 			// En Passant capture: restore pawn at (ToCol, FromRow)
-			g.Board.SetPiece(move.ToCol, move.FromRow, state.CapturedPiece)
+			captureSq := (move.From/8)*8 + (move.To % 8)
+			g.Board.SetPiece(captureSq, state.CapturedPiece)
 		} else {
 			// Normal capture: restore piece at ToCol, ToRow
-			g.Board.SetPiece(move.ToCol, move.ToRow, state.CapturedPiece)
+			g.Board.SetPiece(move.To, state.CapturedPiece)
 		}
 	}
 
 	// Castling undo
 	// If King moved 2 squares, move the Rook back
-	if movedPiece.Type() == King && (move.ToCol-move.FromCol == 2 || move.FromCol-move.ToCol == 2) {
-		row := move.FromRow
-		if move.ToCol > move.FromCol { // Kingside castling (e1->g1 or e8->g8)
+	if movedPiece.Type() == King && (move.To == move.From+2 || move.To == move.From-2) {
+		row := move.From / 8
+		if move.To > move.From { // Kingside castling (e1->g1 or e8->g8)
 			// Rook moved from H to F. Move back F -> H.
-			g.Board.MovePiece(FileF, row, FileH, row)
+			g.Board.MovePiece(row*8+FileF, row*8+FileH)
 		} else { // Queenside castling (e1->c1 or e8->c8)
 			// Rook moved from A to D. Move back D -> A.
-			g.Board.MovePiece(FileD, row, FileA, row)
+			g.Board.MovePiece(row*8+FileD, row*8+FileA)
 		}
 	}
 }
@@ -446,34 +443,32 @@ func (g *Game) IsInsufficientMaterial() bool {
 	whiteBishopSquareColor := -1 // 0 for light, 1 for dark
 	blackBishopSquareColor := -1
 
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
-			if piece == NoPiece {
-				continue
-			}
+	for sq := 0; sq < 64; sq++ {
+		piece := g.Board.GetPiece(sq)
+		if piece == NoPiece {
+			continue
+		}
 
-			// If there's a pawn, rook, or queen, it's not insufficient material
-			if piece.Type() == Pawn || piece.Type() == Rook || piece.Type() == Queen {
-				return false
-			}
+		// If there's a pawn, rook, or queen, it's not insufficient material
+		if piece.Type() == Pawn || piece.Type() == Rook || piece.Type() == Queen {
+			return false
+		}
 
-			if piece.Color() == White {
-				whitePieces++
-				if piece.Type() == Bishop {
-					whiteBishops++
-					whiteBishopSquareColor = (row + col) % 2
-				} else if piece.Type() == Knight {
-					whiteKnights++
-				}
-			} else {
-				blackPieces++
-				if piece.Type() == Bishop {
-					blackBishops++
-					blackBishopSquareColor = (row + col) % 2
-				} else if piece.Type() == Knight {
-					blackKnights++
-				}
+		if piece.Color() == White {
+			whitePieces++
+			if piece.Type() == Bishop {
+				whiteBishops++
+				whiteBishopSquareColor = ((sq / 8) + (sq % 8)) % 2
+			} else if piece.Type() == Knight {
+				whiteKnights++
+			}
+		} else {
+			blackPieces++
+			if piece.Type() == Bishop {
+				blackBishops++
+				blackBishopSquareColor = ((sq / 8) + (sq % 8)) % 2
+			} else if piece.Type() == Knight {
+				blackKnights++
 			}
 		}
 	}
@@ -506,24 +501,26 @@ func (g *Game) IsInsufficientMaterial() bool {
 // isMoveSafe checks if a move is legal (doesn't leave king in check).
 // It temporarily executes the move and checks king safety.
 func (g *Game) isMoveSafe(move Move, piece Piece) bool {
-	targetPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
+	targetPiece := g.Board.GetPiece(move.To)
 
 	// Handle En Passant simulation (remove the captured pawn)
-	isEnPassant := piece.Type() == Pawn && move.ToCol == g.EnPassantTargetCol && move.ToRow == g.EnPassantTargetRow && move.ToCol != move.FromCol
+	isEnPassant := piece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
 	var epCapturedPiece Piece
+	var epCaptureSq int
 	if isEnPassant {
-		epCapturedPiece = g.Board.GetPiece(move.ToCol, move.FromRow)
-		g.Board.SetPiece(move.ToCol, move.FromRow, NoPiece)
+		epCaptureSq = (move.From/8)*8 + (move.To % 8)
+		epCapturedPiece = g.Board.GetPiece(epCaptureSq)
+		g.Board.SetPiece(epCaptureSq, NoPiece)
 	}
 
-	g.Board.MovePiece(move.FromCol, move.FromRow, move.ToCol, move.ToRow)
+	g.Board.MovePiece(move.From, move.To)
 	safe := !g.Board.IsKingInCheck(g.CurrentTurn)
 
 	// Undo the move
-	g.Board.MovePiece(move.ToCol, move.ToRow, move.FromCol, move.FromRow) // Move back
-	g.Board.SetPiece(move.ToCol, move.ToRow, targetPiece)                 // Restore target
+	g.Board.MovePiece(move.To, move.From)  // Move back
+	g.Board.SetPiece(move.To, targetPiece) // Restore target
 	if isEnPassant {
-		g.Board.SetPiece(move.ToCol, move.FromRow, epCapturedPiece)
+		g.Board.SetPiece(epCaptureSq, epCapturedPiece)
 	}
 	return safe
 }
@@ -532,19 +529,17 @@ func (g *Game) isMoveSafe(move Move, piece Piece) bool {
 func (g *Game) GetLegalMoves() []Move {
 	var legalMoves []Move
 	// Use the full generator with game state (Castling, En Passant)
-	mg := NewMoveGeneratorFull(g.Board, g.EnPassantTargetCol, g.EnPassantTargetRow, g.CastlingRights)
+	mg := NewMoveGeneratorFull(g.Board, g.EnPassantTarget, g.CastlingRights)
 
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
-			if piece != NoPiece && piece.Color() == g.CurrentTurn {
-				moves := mg.GenerateMovesForPiece(col, row)
+	for sq := 0; sq < 64; sq++ {
+		piece := g.Board.GetPiece(sq)
+		if piece != NoPiece && piece.Color() == g.CurrentTurn {
+			moves := mg.GenerateMovesForPiece(sq)
 
-				// Filter out moves that leave the king in check
-				for _, move := range moves {
-					if g.isMoveSafe(move, piece) {
-						legalMoves = append(legalMoves, move)
-					}
+			// Filter out moves that leave the king in check
+			for _, move := range moves {
+				if g.isMoveSafe(move, piece) {
+					legalMoves = append(legalMoves, move)
 				}
 			}
 		}
@@ -557,37 +552,34 @@ func (g *Game) GetLegalMoves() []Move {
 func (g *Game) GetNoisyMoves() []Move {
 	var noisyMoves []Move
 	// Use the full generator with game state (Castling, En Passant)
-	mg := NewMoveGeneratorFull(g.Board, g.EnPassantTargetCol, g.EnPassantTargetRow, g.CastlingRights)
+	mg := NewMoveGeneratorFull(g.Board, g.EnPassantTarget, g.CastlingRights)
 
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
-			if piece != NoPiece && piece.Color() == g.CurrentTurn {
-				moves := mg.GenerateMovesForPiece(col, row)
+	for sq := 0; sq < 64; sq++ {
+		piece := g.Board.GetPiece(sq)
+		if piece != NoPiece && piece.Color() == g.CurrentTurn {
+			moves := mg.GenerateMovesForPiece(sq)
 
-				for _, move := range moves {
-					// Filter: Only keep Captures and Promotions
-					targetPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
-					isCapture := targetPiece != NoPiece
-					isPromotion := move.PromotionPiece != NoPiece
+			for _, move := range moves {
+				// Filter: Only keep Captures and Promotions
+				targetPiece := g.Board.GetPiece(move.To)
+				isCapture := targetPiece != NoPiece
+				isPromotion := move.PromotionPiece != NoPiece
 
-					// Check En Passant (special capture case)
-					isEnPassant := piece.Type() == Pawn && move.ToCol == g.EnPassantTargetCol && move.ToRow == g.EnPassantTargetRow && move.ToCol != move.FromCol
-					if isEnPassant {
-						isCapture = true
-					}
+				// Check En Passant (special capture case)
+				isEnPassant := piece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
+				if isEnPassant {
+					isCapture = true
+				}
 
-					if !isCapture && !isPromotion {
-						continue
-					}
+				if !isCapture && !isPromotion {
+					continue
+				}
 
-					if g.isMoveSafe(move, piece) {
-						noisyMoves = append(noisyMoves, move)
-					}
+				if g.isMoveSafe(move, piece) {
+					noisyMoves = append(noisyMoves, move)
 				}
 			}
 		}
 	}
 	return noisyMoves
 }
-
