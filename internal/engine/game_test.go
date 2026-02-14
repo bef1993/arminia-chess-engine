@@ -639,7 +639,8 @@ func TestThreefoldRepetition(t *testing.T) {
 	// Initial position (1st occurrence)
 	// We need to manually set the position history because we cleared the board
 	// and set pieces manually, bypassing NewGame's initialization
-	game.PositionHistory = []string{game.GeneratePositionKey()}
+	game.ZobristHash = game.ComputeZobristHash()
+	game.PositionHistory = []uint64{game.ZobristHash}
 
 	// Move 1: White Rook a1-b1
 	game.ExecuteMove(NewMove(FileA, Rank1, FileB, Rank1))

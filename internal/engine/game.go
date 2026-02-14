@@ -1,15 +1,5 @@
 package engine
 
-import (
-	"errors"
-	"fmt"
-	"io"
-	"os"
-	"strconv"
-	"strings"
-	"unicode"
-)
-
 // GameStatus represents the current state of the game
 type GameStatus int
 
@@ -29,7 +19,7 @@ type GameState struct {
 	EnPassantTargetRow int
 	HalfMoveClock      int
 	CapturedPiece      Piece
-	PositionHistory    []string
+	PositionHistory    []uint64
 	ZobristHash        uint64
 }
 
@@ -61,60 +51,12 @@ func NewGame() *Game {
 			EnPassantTargetRow: -1,
 			CastlingRights:     AllCastling,
 			HalfMoveClock:      0,
-			PositionHistory:    []string{},
+			PositionHistory:    []uint64{},
 		},
 	}
-	g.PositionHistory = append(g.PositionHistory, g.GeneratePositionKey())
 	g.ZobristHash = g.ComputeZobristHash()
+	g.PositionHistory = append(g.PositionHistory, g.ZobristHash)
 	return g
-}
-
-// PrintBoard prints the current board state to the console
-func (g *Game) PrintBoard(w io.Writer) {
-	if w == nil {
-		w = os.Stdout
-	}
-	fmt.Fprintln(w, "  a b c d e f g h")
-	fmt.Fprintln(w, "  ╔═╦═╦═╦═╦═╦═╦═╦═╗")
-
-	for row := 0; row < 8; row++ {
-		fmt.Fprint(w, 8-row)
-		fmt.Fprint(w, " ")
-		fmt.Fprint(w, "║")
-
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
-			if piece != NoPiece {
-				fmt.Fprint(w, piece.GetSymbol())
-			} else {
-				fmt.Fprint(w, " ")
-			}
-
-			if col < 7 {
-				fmt.Fprint(w, "║")
-			} else {
-				fmt.Fprint(w, "║")
-			}
-		}
-
-		fmt.Fprint(w, " ")
-		fmt.Fprint(w, 8-row)
-		if row < 7 {
-			fmt.Fprintln(w)
-			fmt.Fprintln(w, "  ╠═╬═╬═╬═╬═╬═╬═╬═╣")
-		}
-	}
-
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  ╚═╩═╩═╩═╩═╩═╩═╩═╝")
-	fmt.Fprintln(w, "  a b c d e f g h")
-	fmt.Fprintln(w)
-
-	if g.CurrentTurn == White {
-		fmt.Fprintln(w, "Current turn: White")
-	} else {
-		fmt.Fprintln(w, "Current turn: Black")
-	}
 }
 
 // SwitchTurn changes the current turn to the other player
@@ -274,20 +216,6 @@ func (g *Game) ExecuteMove(move Move) bool {
 	// Switch turns
 	g.SwitchTurn()
 
-	// Update position history for repetition check
-	// If the move is irreversible (capture or pawn move), we clear the history
-	// because previous positions can never be reached again.
-	// This is an optimization and also correct according to FIDE rules for 3-fold repetition.
-	newPosKey := g.GeneratePositionKey()
-	if isCapture || isPawnMove {
-		g.PositionHistory = []string{newPosKey}
-	} else {
-		g.PositionHistory = append(g.PositionHistory, newPosKey)
-	}
-
-	// Push state to history
-	g.StateHistory = append(g.StateHistory, state)
-
 	// XOR in new state (Castling, EP)
 	hash ^= zobristCastling[g.CastlingRights]
 	if g.EnPassantTargetCol != -1 {
@@ -297,6 +225,19 @@ func (g *Game) ExecuteMove(move Move) bool {
 	}
 
 	g.ZobristHash = hash
+
+	// Update position history for repetition check
+	// If the move is irreversible (capture or pawn move), we clear the history
+	// because previous positions can never be reached again.
+	// This is an optimization and also correct according to FIDE rules for 3-fold repetition.
+	if isCapture || isPawnMove {
+		g.PositionHistory = []uint64{g.ZobristHash}
+	} else {
+		g.PositionHistory = append(g.PositionHistory, g.ZobristHash)
+	}
+
+	// Push state to history
+	g.StateHistory = append(g.StateHistory, state)
 
 	return true
 }
@@ -453,10 +394,10 @@ func (g *Game) IsDrawByFiftyMoveRule() bool {
 
 // CanClaimDrawByThreefoldRepetition checks if current position has occurred 3 times
 func (g *Game) CanClaimDrawByThreefoldRepetition() bool {
-	currentKey := g.GeneratePositionKey()
+	currentHash := g.ZobristHash
 	count := 0
-	for _, key := range g.PositionHistory {
-		if key == currentKey {
+	for _, hash := range g.PositionHistory {
+		if hash == currentHash {
 			count++
 		}
 	}
@@ -562,6 +503,31 @@ func (g *Game) IsInsufficientMaterial() bool {
 	return false
 }
 
+// isMoveSafe checks if a move is legal (doesn't leave king in check).
+// It temporarily executes the move and checks king safety.
+func (g *Game) isMoveSafe(move Move, piece Piece) bool {
+	targetPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
+
+	// Handle En Passant simulation (remove the captured pawn)
+	isEnPassant := piece.Type() == Pawn && move.ToCol == g.EnPassantTargetCol && move.ToRow == g.EnPassantTargetRow && move.ToCol != move.FromCol
+	var epCapturedPiece Piece
+	if isEnPassant {
+		epCapturedPiece = g.Board.GetPiece(move.ToCol, move.FromRow)
+		g.Board.SetPiece(move.ToCol, move.FromRow, NoPiece)
+	}
+
+	g.Board.MovePiece(move.FromCol, move.FromRow, move.ToCol, move.ToRow)
+	safe := !g.Board.IsKingInCheck(g.CurrentTurn)
+
+	// Undo the move
+	g.Board.MovePiece(move.ToCol, move.ToRow, move.FromCol, move.FromRow) // Move back
+	g.Board.SetPiece(move.ToCol, move.ToRow, targetPiece)                 // Restore target
+	if isEnPassant {
+		g.Board.SetPiece(move.ToCol, move.FromRow, epCapturedPiece)
+	}
+	return safe
+}
+
 // GetLegalMoves returns all legal moves for the current turn, considering game state
 func (g *Game) GetLegalMoves() []Move {
 	var legalMoves []Move
@@ -576,30 +542,8 @@ func (g *Game) GetLegalMoves() []Move {
 
 				// Filter out moves that leave the king in check
 				for _, move := range moves {
-					// Simulate the move to check legality
-
-					targetPiece := g.Board.GetPiece(move.ToCol, move.ToRow)
-
-					// Handle En Passant simulation (remove the captured pawn)
-					isEnPassant := piece.Type() == Pawn && move.ToCol == g.EnPassantTargetCol && move.ToRow == g.EnPassantTargetRow && move.ToCol != move.FromCol
-					var epCapturedPiece Piece
-					if isEnPassant {
-						epCapturedPiece = g.Board.GetPiece(move.ToCol, move.FromRow)
-						g.Board.SetPiece(move.ToCol, move.FromRow, NoPiece)
-					}
-
-					g.Board.MovePiece(move.FromCol, move.FromRow, move.ToCol, move.ToRow)
-
-					if !g.Board.IsKingInCheck(g.CurrentTurn) {
+					if g.isMoveSafe(move, piece) {
 						legalMoves = append(legalMoves, move)
-					}
-
-					// Undo the move
-					g.Board.SetPiece(move.FromCol, move.FromRow, piece)
-					g.Board.SetPiece(move.ToCol, move.ToRow, targetPiece)
-
-					if isEnPassant {
-						g.Board.SetPiece(move.ToCol, move.FromRow, epCapturedPiece)
 					}
 				}
 			}
@@ -637,25 +581,8 @@ func (g *Game) GetNoisyMoves() []Move {
 						continue
 					}
 
-					// Simulate the move to check legality (King safety)
-					var epCapturedPiece Piece
-					if isEnPassant {
-						epCapturedPiece = g.Board.GetPiece(move.ToCol, move.FromRow)
-						g.Board.SetPiece(move.ToCol, move.FromRow, NoPiece)
-					}
-
-					g.Board.MovePiece(move.FromCol, move.FromRow, move.ToCol, move.ToRow)
-
-					if !g.Board.IsKingInCheck(g.CurrentTurn) {
+					if g.isMoveSafe(move, piece) {
 						noisyMoves = append(noisyMoves, move)
-					}
-
-					// Undo the move
-					g.Board.SetPiece(move.FromCol, move.FromRow, piece)
-					g.Board.SetPiece(move.ToCol, move.ToRow, targetPiece)
-
-					if isEnPassant {
-						g.Board.SetPiece(move.ToCol, move.FromRow, epCapturedPiece)
 					}
 				}
 			}
@@ -664,176 +591,3 @@ func (g *Game) GetNoisyMoves() []Move {
 	return noisyMoves
 }
 
-// LoadFEN loads a game state from a FEN string
-func (g *Game) LoadFEN(fen string) error {
-	parts := strings.Fields(fen)
-	if len(parts) < 4 {
-		return errors.New("invalid FEN: too few fields")
-	}
-
-	// 1. Piece placement
-	g.Board.Clear()
-	ranks := strings.Split(parts[0], "/")
-	if len(ranks) != 8 {
-		return errors.New("invalid FEN: wrong number of ranks")
-	}
-
-	for r, rankStr := range ranks {
-		row := r // FEN starts from rank 8 (row 0) to rank 1 (row 7)
-		col := 0
-		for _, char := range rankStr {
-			if unicode.IsDigit(char) {
-				emptySquares, _ := strconv.Atoi(string(char))
-				col += emptySquares
-			} else {
-				piece := NewPieceFromChar(char)
-				if piece == NoPiece {
-					return fmt.Errorf("invalid piece char: %c", char)
-				}
-				g.Board.SetPiece(col, row, piece)
-				col++
-			}
-		}
-		if col != 8 {
-			return fmt.Errorf("invalid FEN: rank %d has wrong width", 8-r)
-		}
-	}
-
-	// 2. Active color
-	switch parts[1] {
-	case "w":
-		g.CurrentTurn = White
-	case "b":
-		g.CurrentTurn = Black
-	default:
-		return errors.New("invalid active color")
-	}
-
-	// 3. Castling availability
-	g.CastlingRights = NoCastling
-	if parts[2] != "-" {
-		for _, char := range parts[2] {
-			switch char {
-			case 'K':
-				g.CastlingRights |= WhiteKingside
-			case 'Q':
-				g.CastlingRights |= WhiteQueenside
-			case 'k':
-				g.CastlingRights |= BlackKingside
-			case 'q':
-				g.CastlingRights |= BlackQueenside
-			default:
-				// Ignore invalid chars or handle error
-			}
-		}
-	}
-
-	// 4. En passant target square
-	g.EnPassantTargetCol = -1
-	g.EnPassantTargetRow = -1
-	if parts[3] != "-" {
-		col, row := Sq(parts[3])
-		if col != -1 && row != -1 {
-			g.EnPassantTargetCol = col
-			g.EnPassantTargetRow = row
-		}
-	}
-
-	// 5. Halfmove clock (optional)
-	g.HalfMoveClock = 0
-	if len(parts) > 4 {
-		if val, err := strconv.Atoi(parts[4]); err == nil {
-			g.HalfMoveClock = val
-		}
-	}
-
-	// 6. Fullmove number (optional)
-	g.FullMoveNumber = 1
-	if len(parts) > 5 {
-		if val, err := strconv.Atoi(parts[5]); err == nil {
-			g.FullMoveNumber = val
-		}
-	}
-
-	// Reset history as we are starting from a position
-	g.MoveHistory = []Move{}
-	g.LastMove = nil
-
-	// Reset position history
-	g.PositionHistory = []string{g.GeneratePositionKey()}
-
-	// Compute initial hash
-	g.ZobristHash = g.ComputeZobristHash()
-
-	return nil
-}
-
-// GeneratePositionKey returns a string representing the unique position (pieces, turn, castling, ep)
-func (g *Game) GeneratePositionKey() string {
-	var sb strings.Builder
-
-	// 1. Piece placement
-	for row := 0; row < 8; row++ {
-		emptyCount := 0
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
-			if piece == NoPiece {
-				emptyCount++
-			} else {
-				if emptyCount > 0 {
-					sb.WriteString(strconv.Itoa(emptyCount))
-					emptyCount = 0
-				}
-				sb.WriteString(piece.GetChar())
-			}
-		}
-		if emptyCount > 0 {
-			sb.WriteString(strconv.Itoa(emptyCount))
-		}
-		if row < 7 {
-			sb.WriteString("/")
-		}
-	}
-
-	sb.WriteString(" ")
-
-	// 2. Active color
-	if g.CurrentTurn == White {
-		sb.WriteString("w")
-	} else {
-		sb.WriteString("b")
-	}
-
-	sb.WriteString(" ")
-
-	// 3. Castling availability
-	if g.CastlingRights == NoCastling {
-		sb.WriteString("-")
-	} else {
-		if g.CastlingRights&WhiteKingside != 0 {
-			sb.WriteString("K")
-		}
-		if g.CastlingRights&WhiteQueenside != 0 {
-			sb.WriteString("Q")
-		}
-		if g.CastlingRights&BlackKingside != 0 {
-			sb.WriteString("k")
-		}
-		if g.CastlingRights&BlackQueenside != 0 {
-			sb.WriteString("q")
-		}
-	}
-
-	sb.WriteString(" ")
-
-	// 4. En passant target square
-	if g.EnPassantTargetCol != -1 && g.EnPassantTargetRow != -1 {
-		col := rune('a' + g.EnPassantTargetCol)
-		row := 8 - g.EnPassantTargetRow
-		sb.WriteString(fmt.Sprintf("%c%d", col, row))
-	} else {
-		sb.WriteString("-")
-	}
-
-	return sb.String()
-}

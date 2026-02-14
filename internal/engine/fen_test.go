@@ -28,3 +28,18 @@ func TestLoadFEN(t *testing.T) {
 	assert.Equal(t, WhiteRook, game.Board.GetPiece(FileA, Rank1), "Expected WhiteRook at a1")
 	assert.Equal(t, WhiteQueenside, game.CastlingRights, "Expected WhiteQueenside castling")
 }
+
+func TestGenerateFEN(t *testing.T) {
+	game := NewGame()
+	fen := "r3k2r/ppp2ppb/2p4p/4P3/3N2Pb/4B2P/PPP2P2/R2R2K1 b - - 0 16"
+	err := game.LoadFEN(fen)
+	assert.NoError(t, err, "Failed to load FEN")
+
+	generated := game.GenerateFEN()
+	assert.Equal(t, fen, generated, "Generated FEN should match loaded FEN")
+
+	move, _ := ParseMove("a7a5", game)
+	game.ExecuteMove(move)
+	game.UnmakeMove()
+	assert.Equal(t, fen, generated, "Generated FEN should match loaded FEN")
+}

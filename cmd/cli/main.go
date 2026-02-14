@@ -4,6 +4,7 @@ import (
 	"arminia-chess-engine/internal/engine"
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -17,7 +18,7 @@ func main() {
 	fmt.Println()
 
 	for {
-		game.PrintBoard(os.Stdout)
+		PrintBoard(os.Stdout, game)
 
 		status := game.GetGameStatus()
 		if status != engine.StatusActive {
@@ -87,4 +88,52 @@ func handleMove(game *engine.Game, moveStr string) error {
 
 	game.ExecuteMove(move)
 	return nil
+}
+
+// PrintBoard prints the current board state to the console
+func PrintBoard(w io.Writer, g *engine.Game) {
+	if w == nil {
+		w = os.Stdout
+	}
+	fmt.Fprintln(w, "  a b c d e f g h")
+	fmt.Fprintln(w, "  ╔═╦═╦═╦═╦═╦═╦═╦═╗")
+
+	for row := 0; row < 8; row++ {
+		fmt.Fprint(w, 8-row)
+		fmt.Fprint(w, " ")
+		fmt.Fprint(w, "║")
+
+		for col := 0; col < 8; col++ {
+			piece := g.Board.GetPiece(col, row)
+			if piece != engine.NoPiece {
+				fmt.Fprint(w, piece.GetSymbol())
+			} else {
+				fmt.Fprint(w, " ")
+			}
+
+			if col < 7 {
+				fmt.Fprint(w, "║")
+			} else {
+				fmt.Fprint(w, "║")
+			}
+		}
+
+		fmt.Fprint(w, " ")
+		fmt.Fprint(w, 8-row)
+		if row < 7 {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "  ╠═╬═╬═╬═╬═╬═╬═╬═╣")
+		}
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "  ╚═╩═╩═╩═╩═╩═╩═╩═╝")
+	fmt.Fprintln(w, "  a b c d e f g h")
+	fmt.Fprintln(w)
+
+	if g.CurrentTurn == engine.White {
+		fmt.Fprintln(w, "Current turn: White")
+	} else {
+		fmt.Fprintln(w, "Current turn: Black")
+	}
 }
