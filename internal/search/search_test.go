@@ -9,14 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func assertMateScore(t *testing.T, score int) {
-	t.Helper()
-	// Mate scores are close to EvalMate (29000).
-	// The score is reduced by the number of plies to mate, so we check if it's
-	// within a large margin of the base mate score to confirm it's a mate.
-	assert.Greater(t, score, EvalMate-1000, "Score %d should indicate a forced mate", score)
-}
-
 func TestSearchPlaceholder(t *testing.T) {
 	game := engine.NewGame()
 
@@ -26,67 +18,6 @@ func TestSearchPlaceholder(t *testing.T) {
 
 	// A zero-value move would have FromCol=0, FromRow=0, etc.
 	assert.NotEqual(t, engine.Move{}, move, "Search should return a non-zero move from the starting position")
-}
-
-func TestSearchFindsMateInOne(t *testing.T) {
-	game := engine.NewGame()
-	// Unique mate in 1 position
-	// White Queen on d6, Black King on e8. Move Qd6-e6#
-	fen := "3rkr2/8/3Q1p2/4p3/8/8/8/K7 w - - 0 1"
-	err := game.LoadFEN(fen)
-	assert.NoError(t, err)
-
-	// Search should find the mate
-	// Depth 2 is required because depth 1 only evaluates the position (material),
-	// while depth 2 checks if the opponent has any legal moves left.
-	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 2}, nil)
-
-	// Expected move: Qd6-e6#
-	assert.Equal(t, "d6e6", move.String(), "Should find mate d6e6")
-	assertMateScore(t, score)
-}
-
-func TestSearchFindsMateInOneBlack(t *testing.T) {
-	game := engine.NewGame()
-	// Mate in 1 for Black
-	// White King at a8, Black King at c7, Black Rook at b1. Move Rb1-a1#
-	fen := "K7/2k5/8/8/8/8/8/1r6 b - - 0 1"
-	err := game.LoadFEN(fen)
-	assert.NoError(t, err)
-
-	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 2}, nil)
-
-	// Expected move: Rb1-a1#
-	assert.Equal(t, "b1a1", move.String(), "Should find mate b1a1")
-	assertMateScore(t, score)
-}
-
-func TestSearchFindsMateInTwo(t *testing.T) {
-	game := engine.NewGame()
-	// Unique mate in 2 moves
-	fen := "rn2kb2/ppp2p1Q/6pn/3p4/4q1b1/3P4/PPPK1PPP/RNB2BNR b q - 2 8"
-	err := game.LoadFEN(fen)
-	assert.NoError(t, err)
-
-	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 4}, nil)
-
-	// Expected move: Qf4+, followed by Qxc1#
-	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
-	assertMateScore(t, score)
-}
-
-func TestSearchFindsMateInThreeWithEnPassant(t *testing.T) {
-	game := engine.NewGame()
-	// Unique mate in 3 moves involving en passant
-	fen := "rn3k1r/pp2p2p/3pQ1pn/1BpP2N1/5P2/3K4/P1PB2qP/8 w - - 2 17"
-	err := game.LoadFEN(fen)
-	assert.NoError(t, err)
-
-	move, score, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 6}, nil)
-
-	// Expected move: e6c8
-	assert.Equal(t, "e6c8", move.String(), "Should find mate in 3 with en passant")
-	assertMateScore(t, score)
 }
 
 func TestTTIntegration_ReducesNodeCount(t *testing.T) {
@@ -116,61 +47,6 @@ func TestTTIntegration_ReducesNodeCount(t *testing.T) {
 	// The second search should visit significantly fewer nodes
 	// In a pure Negamax with TT, if the exact position is found at sufficient depth, nodes2 might be 1.
 	assert.Less(t, nodes2, nodes1, "Second search should visit fewer nodes due to TT hit")
-}
-
-func TestQuiescence_AvoidsBadCapture(t *testing.T) {
-	game := engine.NewGame()
-	game.Board.Clear()
-
-	// Setup:
-	// White: King e1, Queen d1, Pawn h2 (to provide a quiet move)
-	// Black: King e8, Rook d8 (protected by Knight), Knight c6
-	// White to move.
-	// Bad capture: Qxd8+ (Exchange Q(9) for R(5). Net -4).
-	// Quiet move: h2h3 (Score ~ +1 due to material advantage Q vs R+N).
-
-	game.Board.SetPieceAt("e1", engine.WhiteKing)
-	game.Board.SetPieceAt("d1", engine.WhiteQueen)
-	game.Board.SetPieceAt("h2", engine.WhitePawn)
-
-	game.Board.SetPieceAt("e8", engine.BlackKing)
-	game.Board.SetPieceAt("d8", engine.BlackRook)
-	game.Board.SetPieceAt("c6", engine.BlackKnight)
-
-	game.CurrentTurn = engine.White
-
-	// Search at depth 1.
-	// Without QS, negamax sees Qxd8 -> +6 (Q vs N) because it doesn't see the recapture.
-	// With QS, negamax sees Qxd8 -> -3 (N vs nothing) because it sees Nxd8.
-	move, eval, _ := Search(context.Background(), game, SearchOptions{MaxDepth: 1}, nil)
-
-	assert.NotEqual(t, "d1d8", move.String(), "Quiescence search should avoid bad capture d1d8")
-	assert.Greater(t, eval, 0, "eval should be greater than 0")
-}
-
-func TestQuiescence_IncludesEnPassant(t *testing.T) {
-	game := engine.NewGame()
-	game.Board.Clear()
-
-	// Setup: White Pawn e5, Black Pawn d5 (just moved). EP target d6.
-	game.Board.SetPieceAt("e1", engine.WhiteKing)
-	game.Board.SetPieceAt("e5", engine.WhitePawn)
-	game.Board.SetPieceAt("e8", engine.BlackKing)
-	game.Board.SetPieceAt("d5", engine.BlackPawn)
-
-	game.CurrentTurn = engine.White
-	game.EnPassantTargetCol = engine.FileD
-	game.EnPassantTargetRow = engine.Rank6
-
-	// Evaluate at root should be 0 (equal material).
-	// Quiescence should find exd6 e.p. which wins a pawn.
-	nodes := 0
-	var selDepth int
-	score, _ := quiescence(context.Background(), game, -EvalInfinity, EvalInfinity, 0, &nodes, &selDepth)
-
-	// Score should reflect winning a pawn (~100)
-	// We use 50 as a safe lower bound for a pawn advantage
-	assert.Greater(t, score, 50, "Quiescence search should find en passant capture winning a pawn")
 }
 
 func TestIterativeDeepening_ReportsInfo(t *testing.T) {
@@ -262,35 +138,4 @@ func TestSearch_RespectsCancellation(t *testing.T) {
 
 	assert.NotEqual(t, engine.Move{}, move, "Should return a valid move")
 	assert.Less(t, elapsed, 50*time.Millisecond, "Search should stop immediately after cancellation")
-}
-
-func TestOrderMoves(t *testing.T) {
-	game := engine.NewGame()
-	game.Board.Clear()
-
-	game.LoadFEN("k2q4/4P3/8/1pP5/3Q1b2/3p4/8/K7 w - b6 0 1")
-	noisyMoves := game.GetNoisyMoves()
-	ttMove, _ := engine.ParseMove("d4d3", game)
-
-	orderMoves(game, noisyMoves, ttMove)
-
-	// Make sure that TT move is #1
-	// Pawn capture Queen and promote to Queen is #2
-	// Pawn capture Queen and promote to Rook is #3
-	// Pawn capture Queen and promote to Bishop is #4
-	// Pawn capture Queen and promote to Knight is #5
-	// Pawn promoting to a Queen is #6
-	// Queen capturing enemy Queen is #7
-	// Pawn promoting to a Rook is #8
-	// Pawn promoting to a Bishop is #9
-	// Pawn promoting to a Knight is #10
-	// Queen capturing Bishop is #11
-	// Pawn capturing en passant is #12
-
-	orderedMoves := ""
-	for _, m := range noisyMoves {
-		orderedMoves += m.String() + " "
-	}
-	assert.Equal(t, "d4d3 e7d8q e7d8r e7d8b e7d8n e7e8q d4d8 e7e8r e7e8b e7e8n d4f4 c5b6 ", orderedMoves, "Moves should be ordered correctly")
-
 }

@@ -13,6 +13,16 @@ The modular structure enables different use cases:
 - **`arminia-uci.exe`** - UCI mode for competing on Lichess/engines
 - **`arminia-cli.exe`** - Interactive command-line interface for testing
 
+## Project Structure
+
+The codebase is organized into modular packages:
+
+- **`cmd/`**: Application entry points (`uci` and `cli`).
+- **`internal/`**: Core application logic.
+  - **`engine/`**: Board representation, move generation, and game state management.
+  - **`search/`**: Search algorithms (Negamax, Quiescence), evaluation, and transposition tables.
+  - **`uci/`**: UCI protocol handling for communication with chess GUIs.
+
 ## Features
 
 - **Board Representation**: Standard 8x8 chess board with piece placement
@@ -106,13 +116,6 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 
 Reference: <https://lichess.org/api#tag/Bot>
-
-## Performance Goals
-
-- **Elo Rating**: Target 1600+ after Phase 3
-- **Search Speed**: 100,000+ nodes per second
-- **Opening Strength**: Standard openings library
-- **Endgame**: Tablebase integration for perfect play
 
 ## Testing
 

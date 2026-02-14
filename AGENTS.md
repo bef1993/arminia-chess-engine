@@ -27,7 +27,11 @@ See [README.md](README.md) for the current project file structure.
 
 | File        | Purpose             | Key Functions           |
 | :---------- | :------------------ | :---------------------- |
-| `search.go` | Search algorithm    | `Search()`, `negamax()` |
+| `search.go` | Search entry point  | `Search()`              |
+| `negamax.go`| Main search loop    | `negamax()`             |
+| `quiescence.go`| Quiescence search| `quiescence()`          |
+| `move_ordering.go`| Move sorting  | `orderMoves()`          |
+| `tt.go`     | Transposition Table | `TranspositionTable`    |
 | `eval.go`   | Evaluation function | `Evaluate()`            |
 
 ### Coordinate System
@@ -278,7 +282,7 @@ The search now supports iterative deepening and time management. The next step i
   - Pass a `context` or `stop` channel to the search function.
   - In `negamax`, check periodically (every 2048 nodes) if time is up.
 
-#### 3. Implement Quiescence Search (`internal/search/search.go`) ✅ COMPLETE
+#### 3. Implement Quiescence Search (`internal/search/quiescence.go`) ✅ COMPLETE
 
 - **Problem:** The horizon effect (engine stops searching in the middle of a capture sequence).
 - **Logic:**
@@ -287,7 +291,7 @@ The search now supports iterative deepening and time management. The next step i
   - `Quiescence` only searches captures (and maybe checks).
   - It uses a "standing pat" score (evaluation of current position) as a lower bound.
 
-#### 4. Implement Move Ordering (`internal/search/search.go`) ✅ COMPLETE
+#### 4. Implement Move Ordering (`internal/search/move_ordering.go`) ✅ COMPLETE
 
 - **Logic:**
   - Implemented MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) to sort captures.
