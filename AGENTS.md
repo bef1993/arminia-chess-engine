@@ -119,14 +119,16 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 ### Move Selection
 
 - ✅ Search algorithm (Negamax with Alpha-Beta)
+- ✅ Iterative Deepening
 - ✅ Basic Evaluation function (Material)
 - ✅ Quiescence Search (fixes horizon effect)
 - ✅ Transposition Table (Zobrist Hashing)
 - ✅ Move Ordering (Hash move)
-- ✅ Iterative Deepening
 - ✅ Basic Time Management
 - ✅ Advanced Move Ordering (MVV-LVA)
 - ❌ Killer moves
+- ❌ History Heuristic
+- ❌ Check Extensions
 
 ### UCI Protocol
 
@@ -254,12 +256,14 @@ func TestFeature(t *testing.T) {
 
 ### Phase 6: Expert Features ⏳ PLANNED
 
-- Killer Moves
 - Bitboard Representation
 - Advanced Parallel Search (Lazy SMP)
 - Evaluation Tuning (Piece-Square Tables)
 - Opening Book
 - Endgame Tablebases
+- Killer Moves
+- History Heuristic
+- Check Extensions
 
 ## Next Steps for Agents
 

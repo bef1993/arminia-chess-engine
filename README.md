@@ -99,6 +99,7 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Zobrist Hashing**: Efficient board state representation for table lookups.
 - **Transposition Tables**: Caching search results to avoid redundant calculations.
 - **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
+- **Iterative Deepening**: Searching to increasing depths to ensure a best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures.
 
@@ -106,12 +107,14 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
 **Future Improvements (Phase 6):**
 
-- [ ] Killer Moves
 - [ ] Bitboard Representation
 - [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
 - [ ] Opening Books
 - [ ] Endgame Tablebases
+- [ ] Killer Moves
+- [ ] History Heuristic
+- [ ] Check Extensions
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 

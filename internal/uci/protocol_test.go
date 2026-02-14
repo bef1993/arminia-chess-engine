@@ -3,6 +3,8 @@ package uci
 import (
 	"arminia-chess-engine/internal/engine"
 	"bytes"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -219,6 +221,40 @@ func TestParseSearchLimits(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestConcurrency_StopSearch(t *testing.T) {
+	// Use a pipe to simulate stdin stream with delays to verify async handling
+	r, w := io.Pipe()
+	output := &bytes.Buffer{}
+
+	protocol := NewProtocol(r, output)
+
+	done := make(chan struct{})
+	go func() {
+		protocol.Run()
+		close(done)
+	}()
+
+	// Send commands with delays
+	go func() {
+		defer w.Close()
+		fmt.Fprintf(w, "position startpos\n")
+		fmt.Fprintf(w, "go infinite\n")
+		time.Sleep(50 * time.Millisecond) // Allow search to start
+		fmt.Fprintf(w, "stop\n")
+		time.Sleep(50 * time.Millisecond) // Allow search to stop
+		fmt.Fprintf(w, "quit\n")
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("Protocol.Run timed out")
+	}
+
+	result := output.String()
+	assert.Contains(t, result, "bestmove", "Engine should output bestmove after stop command")
 }
 
 func TestHandleStop(t *testing.T) {
