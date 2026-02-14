@@ -78,8 +78,9 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 | **1** | ✅ Complete    | Board, pieces, move generation                        |
 | **2** | ✅ Complete    | UCI protocol, move validation, special moves          |
 | **3** | ✅ Complete    | FEN support, Search algorithm, evaluation function    |
-| **4** | ⏳ In Progress | Advanced features (quiescence, time management, etc.) |
+| **4** | ✅ Complete    | Advanced features (quiescence, time management, etc.) |
 | **5** | ✅ Complete    | Lichess integration (via lichess-bot)                 |
+| **6** | ⏳ Planned     | Expert features (Killer moves, Bitboards, SMP)        |
 
 For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
@@ -89,16 +90,13 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Transposition Tables**: Caching search results to avoid redundant calculations.
 - **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
+- **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures.
 
 ## Next Steps
 
-**High Priority (Phase 4 - Advanced Search):**
+**Future Improvements (Phase 6):**
 
-- [x] Iterative Deepening & Time Management
-- [ ] Heuristic Move Ordering
-
-**Future Improvements (Phase 5+):**
-
+- [ ] Killer Moves
 - [ ] Bitboard Representation
 - [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)

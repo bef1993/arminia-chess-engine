@@ -121,7 +121,8 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Move Ordering (Hash move)
 - ✅ Iterative Deepening
 - ✅ Basic Time Management
-- ❌ Advanced Move Ordering (MVV-LVA, Killer moves)
+- ✅ Advanced Move Ordering (MVV-LVA)
+- ❌ Killer moves
 
 ### UCI Protocol
 
@@ -239,19 +240,26 @@ func TestFeature(t *testing.T) {
 
 ## Phase Dependencies
 
-### Phase 4: Advanced Features ⏳ IN PROGRESS
+### Phase 4: Advanced Features ✅ COMPLETE
 
 - ✅ Quiescence search
 - ✅ Iterative Deepening
 - ✅ Time management
-- Move ordering
+- ✅ Move ordering
 - ✅ Transposition Tables (Zobrist Hashing)
-- Opening book
-- Endgame tables
+
+### Phase 6: Expert Features ⏳ PLANNED
+
+- Killer Moves
+- Bitboard Representation
+- Advanced Parallel Search (Lazy SMP)
+- Evaluation Tuning (Piece-Square Tables)
+- Opening Book
+- Endgame Tablebases
 
 ## Next Steps for Agents
 
-### High Priority: Heuristic Move Ordering (Phase 4)
+### High Priority: Heuristic Move Ordering (Phase 4) ✅ COMPLETE
 
 The search now supports iterative deepening and time management. The next step is to improve move ordering to increase pruning efficiency.
 
@@ -278,6 +286,13 @@ The search now supports iterative deepening and time management. The next step i
   - At depth 0, instead of calling `Evaluate()`, call `Quiescence()`.
   - `Quiescence` only searches captures (and maybe checks).
   - It uses a "standing pat" score (evaluation of current position) as a lower bound.
+
+#### 4. Implement Move Ordering (`internal/search/search.go`) ✅ COMPLETE
+
+- **Logic:**
+  - Implemented MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) to sort captures.
+  - Hash move is prioritized above all.
+  - Promotions are also prioritized.
 
 ### Testing Requirements
 
