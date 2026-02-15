@@ -5,6 +5,18 @@ import (
 	"sort"
 )
 
+type moveSorter struct {
+	moves  []engine.Move
+	scores []int
+}
+
+func (s *moveSorter) Len() int { return len(s.moves) }
+func (s *moveSorter) Swap(i, j int) {
+	s.moves[i], s.moves[j] = s.moves[j], s.moves[i]
+	s.scores[i], s.scores[j] = s.scores[j], s.scores[i]
+}
+func (s *moveSorter) Less(i, j int) bool { return s.scores[i] > s.scores[j] }
+
 // orderMoves sorts moves based on heuristics to improve search efficiency (Alpha-Beta pruning).
 //
 // Scoring Hierarchy:
@@ -20,12 +32,11 @@ import (
 //
 // 4. Quiet Moves: 0
 func orderMoves(game *engine.Game, moves []engine.Move, ttMove engine.Move) {
-	scores := make(map[string]int)
+	scores := make([]int, len(moves))
 
-	for _, move := range moves {
-		moveKey := move.String()
+	for i, move := range moves {
 		if move == ttMove {
-			scores[moveKey] = 3000000 // Highest priority
+			scores[i] = 3000000 // Highest priority
 			continue
 		}
 
@@ -54,11 +65,9 @@ func orderMoves(game *engine.Game, moves []engine.Move, ttMove engine.Move) {
 			score += 1000000 + move.PromotionPiece.Value()*10
 		}
 
-		scores[moveKey] = score
+		scores[i] = score
 	}
 
 	// Sort moves based on scores (descending)
-	sort.Slice(moves, func(i, j int) bool {
-		return scores[moves[i].String()] > scores[moves[j].String()]
-	})
+	sort.Sort(&moveSorter{moves: moves, scores: scores})
 }
