@@ -14,7 +14,7 @@ const (
 )
 
 // DefaultTTSizeMB is the default size of the transposition table in megabytes.
-const DefaultTTSizeMB = 64
+const DefaultTTSizeMB = 512
 
 // TTEntry represents a single entry in the transposition table
 type TTEntry struct {

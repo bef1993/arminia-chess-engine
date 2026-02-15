@@ -129,14 +129,25 @@ func (u *Protocol) handleIsReady() error {
 	return u.writeLine("readyok")
 }
 
-// handleSetOption processes option setting (currently no-op)
+// handleSetOption processes option setting
 func (u *Protocol) handleSetOption(args []string) error {
 	// Parse: setoption name <id> value <x>
 	slog.Info("SetOption", "args", args)
 
-	if len(args) >= 4 && args[0] == "name" && args[1] == "Hash" && args[2] == "value" {
-		sizeMB, err := strconv.Atoi(args[3])
+	var name, value string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "name" && i+1 < len(args) {
+			name = args[i+1]
+		}
+		if args[i] == "value" && i+1 < len(args) {
+			value = args[i+1]
+		}
+	}
+
+	if strings.EqualFold(name, "Hash") {
+		sizeMB, err := strconv.Atoi(value)
 		if err == nil {
+			u.ensureSearchStopped()
 			slog.Info("Resizing Hash", "sizeMB", sizeMB)
 			search.GlobalTT.Resize(sizeMB)
 		}
