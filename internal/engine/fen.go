@@ -23,22 +23,22 @@ func (g *Game) LoadFEN(fen string) error {
 	}
 
 	for r, rankStr := range ranks {
-		row := 7 - r // FEN starts from rank 8 (row 7) to rank 1 (row 0)
-		col := 0
+		rank := 7 - r // FEN starts from rank 8 (row 7) to rank 1 (row 0)
+		file := 0
 		for _, char := range rankStr {
 			if unicode.IsDigit(char) {
 				emptySquares, _ := strconv.Atoi(string(char))
-				col += emptySquares
+				file += emptySquares
 			} else {
 				piece := NewPieceFromChar(char)
 				if piece == NoPiece {
 					return fmt.Errorf("invalid piece char: %c", char)
 				}
-				g.Board.SetPiece(row*8+col, piece)
-				col++
+				g.Board.SetPiece(GetSq(file, rank), piece)
+				file++
 			}
 		}
-		if col != 8 {
+		if file != 8 {
 			return fmt.Errorf("invalid FEN: rank %d has wrong width", 8-r)
 		}
 	}
@@ -115,10 +115,10 @@ func (g *Game) GenerateFEN() string {
 	var sb strings.Builder
 
 	// 1. Piece placement
-	for row := 7; row >= 0; row-- {
+	for rank := 7; rank >= 0; rank-- {
 		emptyCount := 0
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(row*8 + col)
+		for file := 0; file < 8; file++ {
+			piece := g.Board.GetPiece(GetSq(file, rank))
 			if piece == NoPiece {
 				emptyCount++
 			} else {
@@ -132,7 +132,7 @@ func (g *Game) GenerateFEN() string {
 		if emptyCount > 0 {
 			sb.WriteString(strconv.Itoa(emptyCount))
 		}
-		if row > 0 {
+		if rank > 0 {
 			sb.WriteString("/")
 		}
 	}
@@ -170,8 +170,8 @@ func (g *Game) GenerateFEN() string {
 
 	// 4. En passant target square
 	if g.EnPassantTarget != -1 {
-		col := rune('a' + (g.EnPassantTarget % 8))
-		row := 8 - (g.EnPassantTarget / 8)
+		col := rune('a' + GetFile(g.EnPassantTarget))
+		row := GetRank(g.EnPassantTarget) + 1
 		sb.WriteString(fmt.Sprintf("%c%d", col, row))
 	} else {
 		sb.WriteString("-")

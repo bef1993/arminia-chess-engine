@@ -35,10 +35,10 @@ func (m Move) String() string {
 		return "0000"
 	}
 	moveStr := fmt.Sprintf("%c%d%c%d",
-		rune('a'+(m.From%8)),
-		(m.From/8)+1,
-		rune('a'+(m.To%8)),
-		(m.To/8)+1)
+		rune('a'+GetFile(m.From)),
+		GetRank(m.From)+1,
+		rune('a'+GetFile(m.To)),
+		GetRank(m.To)+1)
 
 	if m.PromotionPiece != NoPiece {
 		switch m.PromotionPiece.Type() {
@@ -173,16 +173,16 @@ func (mg *MoveGenerator) GenerateMovesForPiece(sq int) []Move {
 
 func (mg *MoveGenerator) generatePawnMoves(sq int, color Color) []Move {
 	var moves []Move
-	row := sq / 8
-	col := sq % 8
+	rank := GetRank(sq)
+	file := GetFile(sq)
 
 	direction := 1
-	startRow := int(Rank2)
+	startRank := int(Rank2)
 	promotionRank := int(Rank8)
 
 	if color == Black {
 		direction = -1
-		startRow = int(Rank7)
+		startRank = int(Rank7)
 		promotionRank = int(Rank1)
 	}
 
@@ -195,20 +195,20 @@ func (mg *MoveGenerator) generatePawnMoves(sq int, color Color) []Move {
 	}
 
 	// Move forward one square
-	newRow := row + direction
-	if IsOnBoard2D(col, newRow) {
-		toSq := newRow*8 + col
+	newRank := rank + direction
+	if IsOnBoard2D(file, newRank) {
+		toSq := GetSq(file, newRank)
 		if mg.Board.IsEmpty(toSq) {
-			if newRow == promotionRank {
+			if newRank == promotionRank {
 				addPromotionMoves(toSq)
 			} else {
 				moves = append(moves, NewMove(sq, toSq))
 			}
 
 			// Move forward two squares from starting position
-			if row == startRow {
-				newRow2 := row + 2*direction
-				toSq2 := newRow2*8 + col
+			if rank == startRank {
+				newRank2 := rank + 2*direction
+				toSq2 := GetSq(file, newRank2)
 				if mg.Board.IsEmpty(toSq2) {
 					moves = append(moves, NewMove(sq, toSq2))
 				}
@@ -217,14 +217,14 @@ func (mg *MoveGenerator) generatePawnMoves(sq int, color Color) []Move {
 	}
 
 	// Capture diagonally
-	for dcol := -1; dcol <= 1; dcol += 2 {
-		newCol := col + dcol
-		newRow := row + direction
-		if IsOnBoard2D(newCol, newRow) {
-			toSq := newRow*8 + newCol
+	for dfile := -1; dfile <= 1; dfile += 2 {
+		newFile := file + dfile
+		newRank := rank + direction
+		if IsOnBoard2D(newFile, newRank) {
+			toSq := GetSq(newFile, newRank)
 			// Regular capture
 			if !mg.Board.IsEmpty(toSq) && !mg.Board.IsOccupiedByColor(toSq, color) {
-				if newRow == promotionRank {
+				if newRank == promotionRank {
 					addPromotionMoves(toSq)
 				} else {
 					moves = append(moves, NewMove(sq, toSq))
@@ -327,20 +327,20 @@ func (mg *MoveGenerator) generateKnightMoves(sq int, color Color) []Move {
 
 func (mg *MoveGenerator) generateBishopMoves(sq int, color Color) []Move {
 	var moves []Move
-	row := sq / 8
-	col := sq % 8
+	rank := GetRank(sq)
+	file := GetFile(sq)
 	directions := [][2]int{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}}
 
 	for _, dir := range directions {
 		for i := 1; i < 8; i++ {
-			newRow := row + i*dir[0]
-			newCol := col + i*dir[1]
+			newRank := rank + i*dir[0]
+			newFile := file + i*dir[1]
 
-			if !IsOnBoard2D(newCol, newRow) {
+			if !IsOnBoard2D(newFile, newRank) {
 				break
 			}
 
-			toSq := newRow*8 + newCol
+			toSq := GetSq(newFile, newRank)
 			if mg.Board.IsEmpty(toSq) {
 				moves = append(moves, NewMove(sq, toSq))
 			} else if !mg.Board.IsOccupiedByColor(toSq, color) {
@@ -357,20 +357,20 @@ func (mg *MoveGenerator) generateBishopMoves(sq int, color Color) []Move {
 
 func (mg *MoveGenerator) generateRookMoves(sq int, color Color) []Move {
 	var moves []Move
-	row := sq / 8
-	col := sq % 8
+	rank := GetRank(sq)
+	file := GetFile(sq)
 	directions := [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 
 	for _, dir := range directions {
 		for i := 1; i < 8; i++ {
-			newRow := row + i*dir[0]
-			newCol := col + i*dir[1]
+			newRank := rank + i*dir[0]
+			newFile := file + i*dir[1]
 
-			if !IsOnBoard2D(newCol, newRow) {
+			if !IsOnBoard2D(newFile, newRank) {
 				break
 			}
 
-			toSq := newRow*8 + newCol
+			toSq := GetSq(newFile, newRank)
 			if mg.Board.IsEmpty(toSq) {
 				moves = append(moves, NewMove(sq, toSq))
 			} else if !mg.Board.IsOccupiedByColor(toSq, color) {
@@ -387,20 +387,20 @@ func (mg *MoveGenerator) generateRookMoves(sq int, color Color) []Move {
 
 func (mg *MoveGenerator) generateQueenMoves(sq int, color Color) []Move {
 	var moves []Move
-	row := sq / 8
-	col := sq % 8
+	rank := GetRank(sq)
+	file := GetFile(sq)
 	directions := [][2]int{{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}
 
 	for _, dir := range directions {
 		for i := 1; i < 8; i++ {
-			newRow := row + i*dir[0]
-			newCol := col + i*dir[1]
+			newRank := rank + i*dir[0]
+			newFile := file + i*dir[1]
 
-			if !IsOnBoard2D(newCol, newRow) {
+			if !IsOnBoard2D(newFile, newRank) {
 				break
 			}
 
-			toSq := newRow*8 + newCol
+			toSq := GetSq(newFile, newRank)
 			if mg.Board.IsEmpty(toSq) {
 				moves = append(moves, NewMove(sq, toSq))
 			} else if !mg.Board.IsOccupiedByColor(toSq, color) {

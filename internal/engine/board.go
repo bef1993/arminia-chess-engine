@@ -101,6 +101,21 @@ func IsOnBoard2D(file, rank int) bool {
 	return file >= 0 && file < 8 && rank >= 0 && rank < 8
 }
 
+// GetRank returns the rank (0-7) of a square index
+func GetRank(sq int) int {
+	return sq / 8
+}
+
+// GetFile returns the file (0-7) of a square index
+func GetFile(sq int) int {
+	return sq % 8
+}
+
+// GetSq returns the square index (0-63) for a given file and rank
+func GetSq(file, rank int) int {
+	return rank*8 + file
+}
+
 // GetPiece returns the piece at the given position
 func (b *Board) GetPiece(sq int) Piece {
 	if !IsOnBoard(sq) {
@@ -193,7 +208,7 @@ func (b *Board) FindKing(color Color) int {
 // IsSquareAttackedByColor checks if a square can be attacked by any piece of the attacker color
 func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
 	// Temporary: Convert back to file/rank for sliding logic until Magic Bitboards are implemented
-	file, rank := sq%8, sq/8
+	file, rank := GetFile(sq), GetRank(sq)
 
 	// Check for pawn attacks
 	pawnCheckRank := rank + 1 // If attacker is Black, check for pawns on rank+1 (attacking down)
@@ -202,13 +217,13 @@ func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
 	}
 	if pawnCheckRank >= 0 && pawnCheckRank < 8 {
 		if file > 0 {
-			p := b.GetPiece(pawnCheckRank*8 + file - 1)
+			p := b.GetPiece(GetSq(file-1, pawnCheckRank))
 			if p.Type() == Pawn && p.Color() == attacker {
 				return true
 			}
 		}
 		if file < 7 {
-			p := b.GetPiece(pawnCheckRank*8 + file + 1)
+			p := b.GetPiece(GetSq(file+1, pawnCheckRank))
 			if p.Type() == Pawn && p.Color() == attacker {
 				return true
 			}
@@ -230,7 +245,7 @@ func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
 			if !IsOnBoard2D(checkFile, checkRank) {
 				break // Off board
 			}
-			p := b.GetPiece(checkRank*8 + checkFile)
+			p := b.GetPiece(GetSq(checkFile, checkRank))
 			if p != NoPiece {
 				if p.Color() == attacker {
 					pt := p.Type()
@@ -282,7 +297,7 @@ func Sq(s string) int {
 	if !IsOnBoard2D(file, rank) {
 		return -1
 	}
-	return rank*8 + file
+	return GetSq(file, rank)
 }
 
 // SetPieceAt places a piece using algebraic notation (e.g., "e4")

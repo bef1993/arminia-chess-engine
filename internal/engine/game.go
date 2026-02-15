@@ -81,7 +81,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	// We use the current state values before they are modified
 	hash ^= zobristCastling[g.CastlingRights]
 	if g.EnPassantTarget != -1 {
-		hash ^= zobristEnPassant[g.EnPassantTarget%8] // Use column for hash
+		hash ^= zobristEnPassant[GetFile(g.EnPassantTarget)] // Use column for hash
 	} else {
 		hash ^= zobristEnPassant[8]
 	}
@@ -115,14 +115,11 @@ func (g *Game) ExecuteMove(move Move) bool {
 	// Capture state before changes
 	state := g.GameState // This is a copy.
 	state.CapturedPiece = targetPiece
-	if isEnPassant {
-
-	}
 
 	// Handle en passant capture (remove attacked pawn)
 	if isEnPassant {
 		// Captured pawn is at [ToCol, FromRow]
-		captureSq := (move.From/8)*8 + (move.To % 8)
+		captureSq := GetSq(GetFile(move.To), GetRank(move.From))
 		state.CapturedPiece = g.Board.GetPiece(captureSq)
 
 		isCapture = true
@@ -138,25 +135,25 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 	// Handle castling rook movement
 	if isCastling {
-		row := move.From / 8
+		rank := GetRank(move.From)
 		if move.To > move.From { // Kingside
 			// Move rook from H-file (7) to F-file (5)
-			g.Board.MovePiece(row*8+FileH, row*8+FileF)
+			g.Board.MovePiece(GetSq(FileH, rank), GetSq(FileF, rank))
 
 			// Update Hash: Move Rook
-			rook := g.Board.GetPiece(row*8 + FileF)
-			oldRookSq := row*8 + FileH
-			newRookSq := row*8 + FileF
+			rook := g.Board.GetPiece(GetSq(FileF, rank))
+			oldRookSq := GetSq(FileH, rank)
+			newRookSq := GetSq(FileF, rank)
 			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
 			hash ^= zobristPiece[rook.Color()][rook.Type()][newRookSq]
 		} else { // Queenside
 			// Move rook from A-file (0) to D-file (3)
-			g.Board.MovePiece(row*8+FileA, row*8+FileD)
+			g.Board.MovePiece(GetSq(FileA, rank), GetSq(FileD, rank))
 
 			// Update Hash: Move Rook
-			rook := g.Board.GetPiece(row*8 + FileD)
-			oldRookSq := row*8 + FileA
-			newRookSq := row*8 + FileD
+			rook := g.Board.GetPiece(GetSq(FileD, rank))
+			oldRookSq := GetSq(FileA, rank)
+			newRookSq := GetSq(FileD, rank)
 			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
 			hash ^= zobristPiece[rook.Color()][rook.Type()][newRookSq]
 		}
@@ -185,11 +182,11 @@ func (g *Game) ExecuteMove(move Move) bool {
 	}
 
 	// Detect double pawn move (creates en passant target)
-	rowDiff := (move.To / 8) - (move.From / 8)
-	if rowDiff < 0 {
-		rowDiff = -rowDiff
+	rankDiff := GetRank(move.To) - GetRank(move.From)
+	if rankDiff < 0 {
+		rankDiff = -rankDiff
 	}
-	isDoublePawnMove := isPawnMove && rowDiff == 2
+	isDoublePawnMove := isPawnMove && rankDiff == 2
 
 	// Update en passant target
 	if isDoublePawnMove {
@@ -213,7 +210,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	// XOR in new state (Castling, EP)
 	hash ^= zobristCastling[g.CastlingRights]
 	if g.EnPassantTarget != -1 {
-		hash ^= zobristEnPassant[g.EnPassantTarget%8]
+		hash ^= zobristEnPassant[GetFile(g.EnPassantTarget)]
 	} else {
 		hash ^= zobristEnPassant[8]
 	}
@@ -238,10 +235,10 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 // updateCastlingRights revokes castling rights if king or rook moves or is captured
 func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
-	fromCol := move.From % 8
-	fromRow := move.From / 8
-	toCol := move.To % 8
-	toRow := move.To / 8
+	fromFile := GetFile(move.From)
+	fromRank := GetRank(move.From)
+	toFile := GetFile(move.To)
+	toRank := GetRank(move.To)
 
 	if piece.Type() == King {
 		// King moved - revoke all castling rights for this color
@@ -253,15 +250,15 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	} else if piece.Type() == Rook {
 		// Rook moved - revoke castling on that side
 		if piece.Color() == White {
-			if fromCol == FileA && fromRow == Rank1 {
+			if fromFile == FileA && fromRank == Rank1 {
 				g.CastlingRights &= ^WhiteQueenside
-			} else if fromCol == FileH && fromRow == Rank1 {
+			} else if fromFile == FileH && fromRank == Rank1 {
 				g.CastlingRights &= ^WhiteKingside
 			}
 		} else {
-			if fromCol == FileA && fromRow == Rank8 {
+			if fromFile == FileA && fromRank == Rank8 {
 				g.CastlingRights &= ^BlackQueenside
-			} else if fromCol == FileH && fromRow == Rank8 {
+			} else if fromFile == FileH && fromRank == Rank8 {
 				g.CastlingRights &= ^BlackKingside
 			}
 		}
@@ -270,15 +267,15 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	// If a rook is captured, revoke castling rights
 	if targetPiece != NoPiece && targetPiece.Type() == Rook {
 		if targetPiece.Color() == White {
-			if toCol == FileA && toRow == Rank1 {
+			if toFile == FileA && toRank == Rank1 {
 				g.CastlingRights &= ^WhiteQueenside
-			} else if toCol == FileH && toRow == Rank1 {
+			} else if toFile == FileH && toRank == Rank1 {
 				g.CastlingRights &= ^WhiteKingside
 			}
 		} else {
-			if toCol == FileA && toRow == Rank8 {
+			if toFile == FileA && toRank == Rank8 {
 				g.CastlingRights &= ^BlackQueenside
-			} else if toCol == FileH && toRow == Rank8 {
+			} else if toFile == FileH && toRank == Rank8 {
 				g.CastlingRights &= ^BlackKingside
 			}
 		}
@@ -333,7 +330,7 @@ func (g *Game) UnmakeMove() {
 		// Check if it was En Passant
 		if movedPiece.Type() == Pawn && move.To == g.EnPassantTarget {
 			// En Passant capture: restore pawn at (ToCol, FromRow)
-			captureSq := (move.From/8)*8 + (move.To % 8)
+			captureSq := GetSq(GetFile(move.To), GetRank(move.From))
 			g.Board.SetPiece(captureSq, state.CapturedPiece)
 		} else {
 			// Normal capture: restore piece at ToCol, ToRow
@@ -344,13 +341,13 @@ func (g *Game) UnmakeMove() {
 	// Castling undo
 	// If King moved 2 squares, move the Rook back
 	if movedPiece.Type() == King && (move.To == move.From+2 || move.To == move.From-2) {
-		row := move.From / 8
+		rank := GetRank(move.From)
 		if move.To > move.From { // Kingside castling (e1->g1 or e8->g8)
 			// Rook moved from H to F. Move back F -> H.
-			g.Board.MovePiece(row*8+FileF, row*8+FileH)
+			g.Board.MovePiece(GetSq(FileF, rank), GetSq(FileH, rank))
 		} else { // Queenside castling (e1->c1 or e8->c8)
 			// Rook moved from A to D. Move back D -> A.
-			g.Board.MovePiece(row*8+FileD, row*8+FileA)
+			g.Board.MovePiece(GetSq(FileD, rank), GetSq(FileA, rank))
 		}
 	}
 }
@@ -458,7 +455,7 @@ func (g *Game) IsInsufficientMaterial() bool {
 			whitePieces++
 			if piece.Type() == Bishop {
 				whiteBishops++
-				whiteBishopSquareColor = ((sq / 8) + (sq % 8)) % 2
+				whiteBishopSquareColor = (GetRank(sq) + GetFile(sq)) % 2
 			} else if piece.Type() == Knight {
 				whiteKnights++
 			}
@@ -466,7 +463,7 @@ func (g *Game) IsInsufficientMaterial() bool {
 			blackPieces++
 			if piece.Type() == Bishop {
 				blackBishops++
-				blackBishopSquareColor = ((sq / 8) + (sq % 8)) % 2
+				blackBishopSquareColor = (GetRank(sq) + GetFile(sq)) % 2
 			} else if piece.Type() == Knight {
 				blackKnights++
 			}
@@ -508,7 +505,7 @@ func (g *Game) isMoveSafe(move Move, piece Piece) bool {
 	var epCapturedPiece Piece
 	var epCaptureSq int
 	if isEnPassant {
-		epCaptureSq = (move.From/8)*8 + (move.To % 8)
+		epCaptureSq = GetSq(GetFile(move.To), GetRank(move.From))
 		epCapturedPiece = g.Board.GetPiece(epCaptureSq)
 		g.Board.SetPiece(epCaptureSq, NoPiece)
 	}
