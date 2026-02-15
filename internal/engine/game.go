@@ -453,68 +453,50 @@ func (g *Game) IsDraw() bool {
 
 // IsInsufficientMaterial checks if there are enough pieces to force a checkmate
 func (g *Game) IsInsufficientMaterial() bool {
-	// Count pieces
-	whitePieces := 0
-	blackPieces := 0
-	whiteBishops := 0
-	blackBishops := 0
-	whiteKnights := 0
-	blackKnights := 0
+	// Fast check: If there are any Pawns, Rooks, or Queens, it's not insufficient material.
+	// We can check all at once using bitwise OR.
+	heavyPieces := g.Board.Pieces[White][Pawn] | g.Board.Pieces[White][Rook] | g.Board.Pieces[White][Queen] |
+		g.Board.Pieces[Black][Pawn] | g.Board.Pieces[Black][Rook] | g.Board.Pieces[Black][Queen]
 
-	// Also need to track bishop square colors for same-colored bishop ending
-	whiteBishopSquareColor := -1 // 0 for light, 1 for dark
-	blackBishopSquareColor := -1
-
-	for sq := 0; sq < 64; sq++ {
-		piece := g.Board.GetPiece(sq)
-		if piece == NoPiece {
-			continue
-		}
-
-		// If there's a pawn, rook, or queen, it's not insufficient material
-		if piece.Type() == Pawn || piece.Type() == Rook || piece.Type() == Queen {
-			return false
-		}
-
-		if piece.Color() == White {
-			whitePieces++
-			if piece.Type() == Bishop {
-				whiteBishops++
-				whiteBishopSquareColor = (GetRank(sq) + GetFile(sq)) % 2
-			} else if piece.Type() == Knight {
-				whiteKnights++
-			}
-		} else {
-			blackPieces++
-			if piece.Type() == Bishop {
-				blackBishops++
-				blackBishopSquareColor = (GetRank(sq) + GetFile(sq)) % 2
-			} else if piece.Type() == Knight {
-				blackKnights++
-			}
-		}
+	if heavyPieces != 0 {
+		return false
 	}
 
-	// King vs King
-	if whitePieces == 1 && blackPieces == 1 {
+	// Count minor pieces using Population Count (very fast)
+	whiteKnights := g.Board.Pieces[White][Knight].Count()
+	blackKnights := g.Board.Pieces[Black][Knight].Count()
+	whiteBishops := g.Board.Pieces[White][Bishop].Count()
+	blackBishops := g.Board.Pieces[Black][Bishop].Count()
+
+	whiteMinors := whiteKnights + whiteBishops
+	blackMinors := blackKnights + blackBishops
+	totalMinors := whiteMinors + blackMinors
+
+	// King vs King (No minors)
+	if totalMinors == 0 {
 		return true
 	}
 
-	// King + Knight vs King
-	if (whitePieces == 2 && whiteKnights == 1 && blackPieces == 1) ||
-		(blackPieces == 2 && blackKnights == 1 && whitePieces == 1) {
-		return true
-	}
-
-	// King + Bishop vs King
-	if (whitePieces == 2 && whiteBishops == 1 && blackPieces == 1) ||
-		(blackPieces == 2 && blackBishops == 1 && whitePieces == 1) {
+	// King + Knight vs King OR King + Bishop vs King
+	// (Exactly one minor piece on the board)
+	if totalMinors == 1 {
 		return true
 	}
 
 	// King + Bishop vs King + Bishop (same color squares)
-	if whitePieces == 2 && whiteBishops == 1 && blackPieces == 2 && blackBishops == 1 {
-		return whiteBishopSquareColor == blackBishopSquareColor
+	if whiteBishops == 1 && blackBishops == 1 && whiteKnights == 0 && blackKnights == 0 {
+		// Get the square of the white bishop
+		wbBB := g.Board.Pieces[White][Bishop]
+		wbSq := wbBB.PopLSB() // Safe because we know count is 1
+
+		// Get the square of the black bishop
+		bbBB := g.Board.Pieces[Black][Bishop]
+		bbSq := bbBB.PopLSB()
+
+		wbColor := (GetRank(wbSq) + GetFile(wbSq)) % 2
+		bbColor := (GetRank(bbSq) + GetFile(bbSq)) % 2
+
+		return wbColor == bbColor
 	}
 
 	return false
