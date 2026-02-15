@@ -16,37 +16,42 @@ func TestBoardInitializeStartingPosition(t *testing.T) {
 
 	// Check white pawns on Rank 2
 	for file := 0; file < 8; file++ {
-		piece := board.GetPiece(Rank2*8 + file)
-		assert.Equal(t, WhitePawn, piece)
+		sq := GetSq(file, Rank2)
+		piece := board.GetPiece(sq)
+		assert.Equal(t, WhitePawn, piece, "Expected WhitePawn at %d", sq)
 	}
 
 	// Check black pawns on Rank 7
 	for file := 0; file < 8; file++ {
-		piece := board.GetPiece(Rank7*8 + file)
-		assert.Equal(t, BlackPawn, piece)
+		sq := GetSq(file, Rank7)
+		piece := board.GetPiece(sq)
+		assert.Equal(t, BlackPawn, piece, "Expected BlackPawn at %d", sq)
 	}
 
 	// Check white back row
 	expectedWhiteBack := []PieceType{Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook}
 	for file, expectedType := range expectedWhiteBack {
-		piece := board.GetPiece(Rank1*8 + file)
-		assert.Equal(t, expectedType, piece.Type())
+		sq := GetSq(file, Rank1)
+		piece := board.GetPiece(sq)
+		assert.Equal(t, expectedType, piece.Type(), "Expected %v at %d", expectedType, sq)
 		assert.Equal(t, White, piece.Color())
 	}
 
 	// Check black back row
 	expectedBlackBack := []PieceType{Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook}
 	for file, expectedType := range expectedBlackBack {
-		piece := board.GetPiece(Rank8*8 + file)
-		assert.Equal(t, expectedType, piece.Type())
+		sq := GetSq(file, Rank8)
+		piece := board.GetPiece(sq)
+		assert.Equal(t, expectedType, piece.Type(), "Expected %v at %d", expectedType, sq)
 		assert.Equal(t, Black, piece.Color())
 	}
 
 	// Check middle is empty
-	for row := Rank6; row <= Rank3; row++ {
+	for rank := Rank3; rank <= Rank6; rank++ {
 		for file := 0; file < 8; file++ {
-			piece := board.GetPiece(row*8 + file)
-			assert.Equal(t, NoPiece, piece, "Expected empty square at (col=%d, row=%d)", file, row)
+			sq := GetSq(file, rank)
+			piece := board.GetPiece(sq)
+			assert.Equal(t, NoPiece, piece, "Expected empty square at (file=%d, rank=%d)", file, rank)
 		}
 	}
 }

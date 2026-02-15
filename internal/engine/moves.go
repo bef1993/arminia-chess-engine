@@ -70,43 +70,29 @@ func ParseMove(moveStr string, game *Game) (Move, error) {
 		return Move{}, fmt.Errorf("square out of bounds: %s", moveStr)
 	}
 
-	promotionPiece := NoPiece
+	move := NewMove(from, to)
+
 	if len(moveStr) == 5 {
 		switch moveStr[4] {
 		case 'q':
-			promotionPiece = Queen.FromColor(game.CurrentTurn)
+			move.PromotionPiece = Queen.FromColor(game.CurrentTurn)
 		case 'r':
-			promotionPiece = Rook.FromColor(game.CurrentTurn)
+			move.PromotionPiece = Rook.FromColor(game.CurrentTurn)
 		case 'b':
-			promotionPiece = Bishop.FromColor(game.CurrentTurn)
+			move.PromotionPiece = Bishop.FromColor(game.CurrentTurn)
 		case 'n':
-			promotionPiece = Knight.FromColor(game.CurrentTurn)
+			move.PromotionPiece = Knight.FromColor(game.CurrentTurn)
 		default:
 			return Move{}, fmt.Errorf("invalid promotion piece: %c", moveStr[4])
 		}
 	}
 
-	// Check if move exists in legal moves
-	moves := game.GetLegalMoves()
-	for _, move := range moves {
-		if move.From == from && move.To == to &&
-			move.PromotionPiece == promotionPiece {
-			return move, nil
-		}
+	err := game.ValidateMove(move)
+	if err != nil {
+		return Move{}, err
 	}
 
-	// If we have a promotion move but user didn't specify promotion piece
-	// Check if there are any promotion moves for these coordinates
-	if promotionPiece == NoPiece {
-		for _, move := range moves {
-			if move.From == from && move.To == to &&
-				move.PromotionPiece != NoPiece {
-				return Move{}, fmt.Errorf("promotion piece required (e.g., %sq)", moveStr)
-			}
-		}
-	}
-
-	return Move{}, fmt.Errorf("illegal move: %s", moveStr)
+	return move, nil
 }
 
 // MoveGenerator generates legal moves for the current position

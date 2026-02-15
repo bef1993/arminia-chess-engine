@@ -58,7 +58,7 @@ func (g *Game) ComputeZobristHash() uint64 {
 
 	// 3. En Passant
 	if g.EnPassantTarget != -1 {
-		hash ^= zobristEnPassant[g.EnPassantTarget%8]
+		hash ^= zobristEnPassant[GetFile(g.EnPassantTarget)]
 	} else {
 		hash ^= zobristEnPassant[8] // No EP target
 	}

@@ -1,5 +1,9 @@
 package engine
 
+import (
+	"fmt"
+)
+
 // GameStatus represents the current state of the game
 type GameStatus int
 
@@ -579,4 +583,29 @@ func (g *Game) GetNoisyMoves() []Move {
 		}
 	}
 	return noisyMoves
+}
+
+func (g *Game) ValidateMove(move Move) error {
+	// Check if legalMove exists in legal legalMoves
+	legalMoves := g.GetLegalMoves()
+
+	for _, legalMove := range legalMoves {
+		if legalMove.From == move.From && legalMove.To == move.To &&
+			legalMove.PromotionPiece == move.PromotionPiece {
+			return nil
+		}
+	}
+
+	// If we have a promotion legalMove but user didn't specify promotion piece
+	// Check if there are any promotion legalMoves for these coordinates
+	if move.PromotionPiece == NoPiece {
+		for _, legalMove := range legalMoves {
+			if legalMove.From == move.From && legalMove.To == move.To &&
+				legalMove.PromotionPiece != NoPiece {
+				return fmt.Errorf("promotion move does not have a promotion piece specified")
+			}
+		}
+	}
+
+	return fmt.Errorf("illegal move")
 }

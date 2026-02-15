@@ -66,7 +66,7 @@ func TestHandleMove_Promotion_MissingPiece(t *testing.T) {
 	// Missing promotion piece
 	err := handleMove(game, "e7e8")
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "promotion piece required")
+		assert.Contains(t, err.Error(), "promotion")
 	}
 }
 

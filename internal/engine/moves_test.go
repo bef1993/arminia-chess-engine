@@ -56,10 +56,10 @@ func TestGenerateBishopMovesFromMiddle(t *testing.T) {
 
 	// Verify all moves are diagonal
 	for _, move := range moves {
-		colDiff := (move.To % 8) - (move.From % 8)
-		rowDiff := (move.To / 8) - (move.From / 8)
+		fileDiff := GetFile(move.To) - GetFile(move.From)
+		rankDiff := GetRank(move.To) - GetRank(move.From)
 
-		assert.True(t, colDiff != 0 && rowDiff != 0 && (colDiff == rowDiff || colDiff == -rowDiff), "Invalid bishop move")
+		assert.True(t, fileDiff != 0 && rankDiff != 0 && (fileDiff == rankDiff || fileDiff == -rankDiff), "Invalid bishop move")
 	}
 }
 
@@ -76,10 +76,10 @@ func TestGenerateRookMovesFromMiddle(t *testing.T) {
 
 	// Verify all moves are horizontal or vertical
 	for _, move := range moves {
-		colDiff := (move.To % 8) - (move.From % 8)
-		rowDiff := (move.To / 8) - (move.From / 8)
+		fileDiff := GetFile(move.To) - GetFile(move.From)
+		rankDiff := GetRank(move.To) - GetRank(move.From)
 
-		assert.True(t, (colDiff == 0 && rowDiff != 0) || (colDiff != 0 && rowDiff == 0), "Invalid rook move")
+		assert.True(t, (fileDiff == 0 && rankDiff != 0) || (fileDiff != 0 && rankDiff == 0), "Invalid rook move")
 	}
 }
 
@@ -108,10 +108,10 @@ func TestGenerateKingMoves(t *testing.T) {
 
 	// Verify all moves are 1 square away
 	for _, move := range moves {
-		colDiff := (move.To % 8) - (move.From % 8)
-		rowDiff := (move.To / 8) - (move.From / 8)
+		fileDiff := GetFile(move.To) - GetFile(move.From)
+		rankDiff := GetRank(move.To) - GetRank(move.From)
 
-		assert.True(t, colDiff >= -1 && colDiff <= 1 && rowDiff >= -1 && rowDiff <= 1, "King moved more than 1 square")
+		assert.True(t, fileDiff >= -1 && fileDiff <= 1 && rankDiff >= -1 && rankDiff <= 1, "King moved more than 1 square")
 	}
 }
 
@@ -197,7 +197,6 @@ func TestBishopBlockedByOwnPiece(t *testing.T) {
 		assert.False(t, move.To == Sq("g2"), "Bishop should not move past own piece")
 		assert.False(t, move.To == Sq("h1"), "Bishop should not move past own piece")
 	}
-
 
 	assert.Equal(t, 10, len(moves), "Bishop should have exactly 10 available moves")
 }
