@@ -117,3 +117,43 @@ func TestNegamax_TTIntegration_ReducesNodeCount(t *testing.T) {
 	// In a pure Negamax with TT, if the exact position is found at sufficient depth, nodes2 might be 1.
 	assert.Less(t, nodes2, nodes1, "Second search should visit fewer nodes due to TT hit")
 }
+
+func TestNegamax_DetectsDrawByRepetition(t *testing.T) {
+	game := engine.NewEmptyGame()
+	// Setup a position where white is winning, but a repetition is possible
+	game.Board.SetPieceAt("e1", engine.WhiteKing)
+	game.Board.SetPieceAt("a1", engine.WhiteRook)
+	game.Board.SetPieceAt("e8", engine.BlackKing)
+	game.CurrentTurn = engine.White
+
+	// The static evaluation should be > 0 for white
+	initialEval := Evaluate(game)
+	assert.Greater(t, initialEval, 400, "White should have a material advantage initially")
+
+	// --- Create a 3-fold repetition ---
+	// The board state is now the 1st occurrence.
+
+	// Move sequence to repeat the position
+	moves := []engine.Move{
+		engine.NewMove(engine.Sq("a1"), engine.Sq("b1")), // W
+		engine.NewMove(engine.Sq("e8"), engine.Sq("d8")), // B
+		engine.NewMove(engine.Sq("b1"), engine.Sq("a1")), // W
+		engine.NewMove(engine.Sq("d8"), engine.Sq("e8")), // B -> 2nd occurrence
+		engine.NewMove(engine.Sq("a1"), engine.Sq("b1")), // W
+		engine.NewMove(engine.Sq("e8"), engine.Sq("d8")), // B
+		engine.NewMove(engine.Sq("b1"), engine.Sq("a1")), // W
+		engine.NewMove(engine.Sq("d8"), engine.Sq("e8")), // B -> 3rd occurrence
+	}
+
+	for _, move := range moves {
+		game.ExecuteMove(move)
+	}
+
+	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Game state should recognize the 3-fold repetition")
+
+	nodes := 0
+	selDepth := 0
+	score, _, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 1, &nodes, &selDepth)
+
+	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition, despite material advantage")
+}
