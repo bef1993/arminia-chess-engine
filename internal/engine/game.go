@@ -61,6 +61,27 @@ func NewGame() *Game {
 	return g
 }
 
+// NewEmptyGame creates a new chess game with an empty board
+func NewEmptyGame() *Game {
+	g := &Game{
+		Board:          NewEmptyBoard(),
+		CurrentTurn:    White,
+		MoveHistory:    []Move{},
+		LastMove:       nil,
+		FullMoveNumber: 1,
+		StateHistory:   []GameState{},
+		GameState: GameState{
+			EnPassantTarget: -1,
+			CastlingRights:  NoCastling,
+			HalfMoveClock:   0,
+			PositionHistory: []uint64{},
+		},
+	}
+	g.ZobristHash = g.ComputeZobristHash()
+	g.PositionHistory = append(g.PositionHistory, g.ZobristHash)
+	return g
+}
+
 // SwitchTurn changes the current turn to the other player
 func (g *Game) SwitchTurn() {
 	if g.CurrentTurn == White {
@@ -529,13 +550,11 @@ func (g *Game) isMoveSafe(move Move, piece Piece) bool {
 // GetLegalMoves returns all legal moves for the current turn, considering game state
 func (g *Game) GetLegalMoves() []Move {
 	var legalMoves []Move
-	// Use the full generator with game state (Castling, En Passant)
-	mg := NewMoveGeneratorFull(g.Board, g.EnPassantTarget, g.CastlingRights)
 
 	for sq := 0; sq < 64; sq++ {
 		piece := g.Board.GetPiece(sq)
 		if piece != NoPiece && piece.Color() == g.CurrentTurn {
-			moves := mg.GenerateMovesForPiece(sq)
+			moves := g.generateMovesForPiece(sq)
 
 			// Filter out moves that leave the king in check
 			for _, move := range moves {
@@ -552,13 +571,11 @@ func (g *Game) GetLegalMoves() []Move {
 // This is optimized for Quiescence Search to avoid validating quiet moves.
 func (g *Game) GetNoisyMoves() []Move {
 	var noisyMoves []Move
-	// Use the full generator with game state (Castling, En Passant)
-	mg := NewMoveGeneratorFull(g.Board, g.EnPassantTarget, g.CastlingRights)
 
 	for sq := 0; sq < 64; sq++ {
 		piece := g.Board.GetPiece(sq)
 		if piece != NoPiece && piece.Color() == g.CurrentTurn {
-			moves := mg.GenerateMovesForPiece(sq)
+			moves := g.generateMovesForPiece(sq)
 
 			for _, move := range moves {
 				// Filter: Only keep Captures and Promotions

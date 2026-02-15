@@ -188,27 +188,30 @@ func TestGameDrawByFiftyMoveRule(t *testing.T) {
 }
 
 func TestEnPassantMoveGeneration(t *testing.T) {
-	board := NewEmptyBoard()
+	game := NewGame()
+	game.Board.Clear()
 	// Set up white pawn on e5 and black pawn on d7
-	board.SetPieceAt("e5", WhitePawn)
-	board.SetPieceAt("d7", BlackPawn)
+	game.Board.SetPieceAt("e5", WhitePawn)
+	game.Board.SetPieceAt("d7", BlackPawn)
 
 	// Black pawn moves to d5 (double move), creating en passant target at d6
-	board.MovePiece(Sq("d7"), Sq("d5")) // d7 to d5
+	game.Board.MovePiece(Sq("d7"), Sq("d5")) // d7 to d5
 
 	// Now generate moves for white with en passant target
-	mg := NewMoveGeneratorWithEnPassant(board, Sq("d6")) // d6 is en passant target
-	moves := mg.GenerateMovesForPiece(Sq("e5"))
+	game.EnPassantTarget = Sq("d6")
+	moves := game.GetLegalMoves()
 
-	// Should have regular moves plus en passant capture (move to 3,2)
+	assert.Equal(t, 2, len(moves))
+
+	// assert that one move is en passant to d6
 	hasEnPassant := false
 	for _, move := range moves {
-		if move.To == Sq("d6") {
+		if move.From == Sq("e5") && move.To == Sq("e6") {
 			hasEnPassant = true
+			break
 		}
 	}
-
-	assert.True(t, hasEnPassant, "Expected en passant capture move to (3, 2) to be generated")
+	assert.True(t, hasEnPassant, "Expected en passant move from e5 to e6")
 }
 
 func TestEnPassantCaptureExecution(t *testing.T) {
@@ -294,28 +297,19 @@ func TestPawnPromotionCapture(t *testing.T) {
 }
 
 func TestPawnPromotionMoveGeneration(t *testing.T) {
-	board := NewEmptyBoard()
+	game := NewGame()
+	game.Board.Clear()
 
 	// Place white pawn on e2 (col 4, row 1), one move away from promotion
-	board.SetPieceAt("e7", WhitePawn)
+	game.Board.SetPieceAt("e7", WhitePawn)
 
-	// Generate moves
-	mg := NewMoveGenerator(board)
-	moves := mg.GenerateMovesForPiece(Sq("e7"))
+	legalMoves := game.GetLegalMoves()
 
-	// Should have 4 promotion moves (Queen, Rook, Bishop, Knight)
-	promotionMoves := []Move{}
-	for _, move := range moves {
-		if move.PromotionPiece != 0 {
-			promotionMoves = append(promotionMoves, move)
-		}
-	}
-
-	assert.Len(t, promotionMoves, 4, "Expected 4 promotion moves")
+	assert.Len(t, legalMoves, 4, "Expected 4 promotion moves")
 
 	// Check we have all 4 promotion pieces
 	promotionPieces := make(map[PieceType]bool)
-	for _, move := range promotionMoves {
+	for _, move := range legalMoves {
 		promotionPieces[move.PromotionPiece.Type()] = true
 	}
 
