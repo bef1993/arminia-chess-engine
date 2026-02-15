@@ -51,7 +51,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 	var score int
 	totalNodes := 0
 
-	legalMoves := game.GetLegalMoves()
+	legalMoves := game.GenerateLegalMoves()
 
 	// Initialize bestMove with a fallback in case the search is interrupted before depth 1 completes.
 	// 1. Try to retrieve a move from the Transposition Table (e.g. from previous search)

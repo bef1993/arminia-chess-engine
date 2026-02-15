@@ -23,9 +23,9 @@ func TestLoadFEN(t *testing.T) {
 	err = game.LoadFEN(customFen)
 	assert.NoError(t, err, "Failed to load custom FEN")
 
-	assert.Equal(t, WhiteKing, game.Board.GetPiece(FileE, Rank1), "Expected WhiteKing at e1")
-	assert.Equal(t, BlackKing, game.Board.GetPiece(FileE, Rank8), "Expected BlackKing at e8")
-	assert.Equal(t, WhiteRook, game.Board.GetPiece(FileA, Rank1), "Expected WhiteRook at a1")
+	assert.Equal(t, WhiteKing, game.Board.GetPiece(Sq("e1")), "Expected WhiteKing at e1")
+	assert.Equal(t, BlackKing, game.Board.GetPiece(Sq("e8")), "Expected BlackKing at e8")
+	assert.Equal(t, WhiteRook, game.Board.GetPiece(Sq("a1")), "Expected WhiteRook at a1")
 	assert.Equal(t, WhiteQueenside, game.CastlingRights, "Expected WhiteQueenside castling")
 }
 

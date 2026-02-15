@@ -1,10 +1,12 @@
 package engine
 
-// Board represents the 8x8 chess board
-type Board struct {
-	Squares [8][8]Piece
-}
+import "math/bits"
 
+// Board holds bitboard representations of piece placements and occupancy for efficient move generation and evaluation.
+type Board struct {
+	Pieces    [2][6]Bitboard // [color][pieceType] bitboards for each piece type and color
+	Occupancy [3]Bitboard    // bitboard for occupied squares: [0] white, [1] black, [2] all
+}
 
 // Board coordinates constants for readability
 const (
@@ -19,14 +21,14 @@ const (
 )
 
 const (
-	Rank8 = iota
-	Rank7
-	Rank6
-	Rank5
-	Rank4
-	Rank3
+	Rank1 = iota
 	Rank2
-	Rank1
+	Rank3
+	Rank4
+	Rank5
+	Rank6
+	Rank7
+	Rank8
 )
 
 // NewBoard creates a new chess board with standard starting position
@@ -45,162 +47,264 @@ func NewEmptyBoard() *Board {
 
 // Clear removes all pieces from the board
 func (b *Board) Clear() {
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			b.Squares[row][col] = NoPiece
-		}
+	for i := 0; i < 6; i++ {
+		b.Pieces[White][i] = 0
+		b.Pieces[Black][i] = 0
 	}
+	b.Occupancy[White] = 0
+	b.Occupancy[Black] = 0
+	b.Occupancy[AnyColor] = 0
 }
 
 // InitializeStartingPosition sets up the board with the standard chess starting position
 func (b *Board) InitializeStartingPosition() {
-	// Clear the board first
 	b.Clear()
 
-	// Place pawns
-	for col := 0; col < 8; col++ {
-		b.Squares[Rank7][col] = BlackPawn
-		b.Squares[Rank2][col] = WhitePawn
+	// White Pieces
+	b.Pieces[White][Pawn] = 0x000000000000FF00 // Rank 2
+	b.Pieces[White][Rook].Set(A1)
+	b.Pieces[White][Rook].Set(H1)
+	b.Pieces[White][Knight].Set(B1)
+	b.Pieces[White][Knight].Set(G1)
+	b.Pieces[White][Bishop].Set(C1)
+	b.Pieces[White][Bishop].Set(F1)
+	b.Pieces[White][Queen].Set(D1)
+	b.Pieces[White][King].Set(E1)
+
+	// Black Pieces
+	b.Pieces[Black][Pawn] = 0x00FF000000000000 // Rank 7
+	b.Pieces[Black][Rook].Set(A8)
+	b.Pieces[Black][Rook].Set(H8)
+	b.Pieces[Black][Knight].Set(B8)
+	b.Pieces[Black][Knight].Set(G8)
+	b.Pieces[Black][Bishop].Set(C8)
+	b.Pieces[Black][Bishop].Set(F8)
+	b.Pieces[Black][Queen].Set(D8)
+	b.Pieces[Black][King].Set(E8)
+
+	// Update Occupancy
+	for i := 0; i < 6; i++ {
+		b.Occupancy[White] |= b.Pieces[White][i]
+		b.Occupancy[Black] |= b.Pieces[Black][i]
 	}
 
-	// Place back row pieces
-	b.Squares[Rank8][FileA] = BlackRook
-	b.Squares[Rank8][FileB] = BlackKnight
-	b.Squares[Rank8][FileC] = BlackBishop
-	b.Squares[Rank8][FileD] = BlackQueen
-	b.Squares[Rank8][FileE] = BlackKing
-	b.Squares[Rank8][FileF] = BlackBishop
-	b.Squares[Rank8][FileG] = BlackKnight
-	b.Squares[Rank8][FileH] = BlackRook
+	b.Occupancy[AnyColor] = b.Occupancy[White] | b.Occupancy[Black]
+}
 
-	b.Squares[Rank1][FileA] = WhiteRook
-	b.Squares[Rank1][FileB] = WhiteKnight
-	b.Squares[Rank1][FileC] = WhiteBishop
-	b.Squares[Rank1][FileD] = WhiteQueen
-	b.Squares[Rank1][FileE] = WhiteKing
-	b.Squares[Rank1][FileF] = WhiteBishop
-	b.Squares[Rank1][FileG] = WhiteKnight
-	b.Squares[Rank1][FileH] = WhiteRook
+// IsOnBoard checks if a square index is valid (0-63)
+func IsOnBoard(sq int) bool {
+	return sq >= 0 && sq < 64
+}
+
+// IsOnBoard2D checks if file and rank are valid (0-7)
+func IsOnBoard2D(file, rank int) bool {
+	return file >= 0 && file < 8 && rank >= 0 && rank < 8
+}
+
+// GetRank returns the rank (0-7) of a square index
+func GetRank(sq int) int {
+	return sq / 8
+}
+
+// GetFile returns the file (0-7) of a square index
+func GetFile(sq int) int {
+	return sq % 8
+}
+
+// GetSq returns the square index (0-63) for a given file and rank
+func GetSq(file, rank int) int {
+	return rank*8 + file
 }
 
 // GetPiece returns the piece at the given position
-func (b *Board) GetPiece(col, row int) Piece {
-	if row < 0 || row >= 8 || col < 0 || col >= 8 {
+func (b *Board) GetPiece(sq int) Piece {
+	if !IsOnBoard(sq) {
 		return NoPiece
 	}
-	return b.Squares[row][col]
+	if !b.Occupancy[AnyColor].IsSet(sq) {
+		return NoPiece
+	}
+
+	// Check White
+	if b.Occupancy[White].IsSet(sq) {
+		for i := 0; i < 6; i++ {
+			if b.Pieces[White][i].IsSet(sq) {
+				return PieceType(i).White()
+			}
+		}
+	} else {
+		for i := 0; i < 6; i++ {
+			if b.Pieces[Black][i].IsSet(sq) {
+				return PieceType(i).Black()
+			}
+		}
+	}
+	return NoPiece
 }
 
 // SetPiece places a piece at the given position
-func (b *Board) SetPiece(col, row int, piece Piece) {
-	if col >= 0 && col < 8 && row >= 0 && row < 8 {
-		b.Squares[row][col] = piece
+func (b *Board) SetPiece(sq int, piece Piece) {
+	if !IsOnBoard(sq) {
+		return
 	}
+
+	// Clear existing piece
+	if b.Occupancy[AnyColor].IsSet(sq) {
+		b.Occupancy[White].Clear(sq)
+		b.Occupancy[Black].Clear(sq)
+		b.Occupancy[AnyColor].Clear(sq)
+
+		for i := 0; i < 6; i++ {
+			b.Pieces[White][i].Clear(sq)
+			b.Pieces[Black][i].Clear(sq)
+		}
+	}
+
+	if piece == NoPiece {
+		return
+	}
+
+	// Set new piece
+	color := piece.Color()
+	pieceType := piece.Type()
+
+	b.Pieces[color][pieceType].Set(sq)
+	b.Occupancy[color].Set(sq)
+	b.Occupancy[AnyColor].Set(sq)
 }
 
 // MovePiece moves a piece from source to destination
-func (b *Board) MovePiece(fromCol, fromRow, toCol, toRow int) bool {
-	piece := b.GetPiece(fromCol, fromRow)
+func (b *Board) MovePiece(from, to int) bool {
+	piece := b.GetPiece(from)
 	if piece == NoPiece {
 		return false
 	}
 
-	b.SetPiece(toCol, toRow, piece)
-	b.SetPiece(fromCol, fromRow, NoPiece)
+	b.SetPiece(to, piece)
+	b.SetPiece(from, NoPiece)
 	return true
 }
 
 // IsEmpty checks if a square is empty
-func (b *Board) IsEmpty(col, row int) bool {
-	return b.GetPiece(col, row) == NoPiece
+func (b *Board) IsEmpty(sq int) bool {
+	return !b.Occupancy[AnyColor].IsSet(sq)
 }
 
 // IsOccupiedByColor checks if a square is occupied by a specific color
-func (b *Board) IsOccupiedByColor(col, row int, color Color) bool {
-	piece := b.GetPiece(col, row)
-	return piece != NoPiece && piece.Color() == color
+func (b *Board) IsOccupiedByColor(sq int, color Color) bool {
+	return b.Occupancy[color].IsSet(sq)
 }
 
 // FindKing locates the king of the given color and returns its position
-// Returns (-1, -1) if king is not found
-func (b *Board) FindKing(color Color) (int, int) {
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			piece := b.GetPiece(col, row)
-			if piece != NoPiece && piece.Type() == King && piece.Color() == color {
-				return col, row
-			}
-		}
+// Returns -1 if king is not found
+func (b *Board) FindKing(color Color) int {
+	kingBB := b.Pieces[color][King]
+	if kingBB == 0 {
+		return -1
 	}
-	return -1, -1
+	return bits.TrailingZeros64(uint64(kingBB))
 }
 
 // IsSquareAttackedByColor checks if a square can be attacked by any piece of the attacker color
-func (b *Board) IsSquareAttackedByColor(col, row int, attacker Color) bool {
+func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
 	// Check for pawn attacks
-	pawnCheckRow := row - 1 // If attacker is Black, check for pawns on row-1
+	// We check if the square is attacked by a pawn of 'attacker' color.
+	// This is equivalent to checking if 'PawnAttacks[Opponent][sq]' overlaps with 'Pieces[Attacker][Pawn]'.
+	opponent := Black
 	if attacker == White {
-		pawnCheckRow = row + 1 // If attacker is White, check for pawns on row+1
+		opponent = Black
+	} else {
+		opponent = White
 	}
-	if pawnCheckRow >= 0 && pawnCheckRow < 8 {
-		if col > 0 {
-			p := b.GetPiece(col-1, pawnCheckRow)
-			if p.Type() == Pawn && p.Color() == attacker {
-				return true
-			}
-		}
-		if col < 7 {
-			p := b.GetPiece(col+1, pawnCheckRow)
-			if p.Type() == Pawn && p.Color() == attacker {
-				return true
-			}
-		}
+
+	if (PawnAttacks[opponent][sq] & b.Pieces[attacker][Pawn]) != 0 {
+		return true
 	}
 
 	// Check for knight attacks
-	knightMoves := [][2]int{{-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}}
-	for _, move := range knightMoves {
-		checkRow := row + move[0]
-		checkCol := col + move[1]
-		if checkRow >= 0 && checkRow < 8 && checkCol >= 0 && checkCol < 8 {
-			p := b.GetPiece(checkCol, checkRow)
-			if p.Type() == Knight && p.Color() == attacker {
-				return true
-			}
-		}
+	// Use pre-calculated KnightAttacks
+	if (KnightAttacks[sq] & b.Pieces[attacker][Knight]) != 0 {
+		return true
 	}
 
-	// Check for sliding pieces (Rook, Bishop, Queen) and King attacks
-	directions := [][2]int{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}}
-	for i, dir := range directions {
-		for dist := 1; dist < 8; dist++ {
-			checkRow := row + dist*dir[0]
-			checkCol := col + dist*dir[1]
-			if checkRow < 0 || checkRow >= 8 || checkCol < 0 || checkCol >= 8 {
-				break // Off board
-			}
-			p := b.GetPiece(checkCol, checkRow)
-			if p != NoPiece {
-				if p.Color() == attacker {
-					pt := p.Type()
-					isDiagonal := i < 4
-					isStraight := i >= 4
-					if pt == Queen || (pt == Bishop && isDiagonal) || (pt == Rook && isStraight) || (pt == King && dist == 1) {
-						return true
-					}
-				}
-				break // Blocked by a piece
-			}
-		}
+	// Check for sliding pieces (Rook, Bishop, Queen)
+	occ := b.Occupancy[AnyColor]
+
+	// Bishop/Queen (Diagonal)
+	bishopAttacks := GetBishopAttacks(sq, occ)
+	if (bishopAttacks & (b.Pieces[attacker][Bishop] | b.Pieces[attacker][Queen])) != 0 {
+		return true
+	}
+
+	// Rook/Queen (Straight)
+	rookAttacks := GetRookAttacks(sq, occ)
+	if (rookAttacks & (b.Pieces[attacker][Rook] | b.Pieces[attacker][Queen])) != 0 {
+		return true
+	}
+
+	// Check for King attacks (symmetric)
+	if (KingAttacks[sq] & b.Pieces[attacker][King]) != 0 {
+		return true
 	}
 
 	return false
 }
 
+// GetAttackedSquares returns a bitboard of all squares attacked by the given color.
+// This is useful for evaluation (mobility, king safety) but typically too slow for move generation checks.
+// TODO create test and use it in evaluation (e.g., mobility, king safety)
+func (b *Board) GetAttackedSquares(attacker Color) Bitboard {
+	var attacks Bitboard
+	occ := b.Occupancy[AnyColor]
+
+	// Pawns
+	pawns := b.Pieces[attacker][Pawn]
+	if attacker == White {
+		// White captures Up-Left (<<7) and Up-Right (<<9)
+		// We must mask out files to prevent wrapping attacks
+		attacks |= (pawns & ^FileA_BB) << 7
+		attacks |= (pawns & ^FileH_BB) << 9
+	} else {
+		// Black captures Down-Right (>>7) and Down-Left (>>9)
+		attacks |= (pawns & ^FileH_BB) >> 7
+		attacks |= (pawns & ^FileA_BB) >> 9
+	}
+
+	// Knights
+	knights := b.Pieces[attacker][Knight]
+	for knights != 0 {
+		sq := knights.PopLSB()
+		attacks |= KnightAttacks[sq]
+	}
+
+	// King
+	king := b.Pieces[attacker][King]
+	if king != 0 {
+		sq := king.PopLSB()
+		attacks |= KingAttacks[sq]
+	}
+
+	// Sliding Pieces
+	// We can combine Bishop+Queen and Rook+Queen to reduce loop overhead
+	bishopsQueens := b.Pieces[attacker][Bishop] | b.Pieces[attacker][Queen]
+	for bishopsQueens != 0 {
+		sq := bishopsQueens.PopLSB()
+		attacks |= GetBishopAttacks(sq, occ)
+	}
+
+	rooksQueens := b.Pieces[attacker][Rook] | b.Pieces[attacker][Queen]
+	for rooksQueens != 0 {
+		sq := rooksQueens.PopLSB()
+		attacks |= GetRookAttacks(sq, occ)
+	}
+
+	return attacks
+}
+
 // IsKingInCheck checks if the king of the given color is in check
 func (b *Board) IsKingInCheck(color Color) bool {
-	kingCol, kingRow := b.FindKing(color)
-	if kingCol == -1 || kingRow == -1 {
+	kingSq := b.FindKing(color)
+	if kingSq == -1 {
 		// King not found (shouldn't happen in valid game)
 		return false
 	}
@@ -212,40 +316,37 @@ func (b *Board) IsKingInCheck(color Color) bool {
 	}
 
 	// Check if the king's square is attacked by any opponent piece
-	return b.IsSquareAttackedByColor(kingCol, kingRow, opponent)
+	return b.IsSquareAttackedByColor(kingSq, opponent)
 }
 
-// Sq converts algebraic notation (e.g., "e4") to col, row coordinates.
-// Returns -1, -1 if the string is invalid.
-func Sq(s string) (int, int) {
+// Sq converts algebraic notation (e.g., "e4") to file, rank coordinates.
+// Returns -1 if the string is invalid.
+func Sq(s string) int {
 	if len(s) != 2 {
-		return -1, -1
+		return -1
 	}
-	col := int(s[0] - 'a')
-	row := 8 - int(s[1]-'0')
-	if col < 0 || col > 7 || row < 0 || row > 7 {
-		return -1, -1
+	file := int(s[0] - 'a')
+	rank := int(s[1] - '1')
+	if !IsOnBoard2D(file, rank) {
+		return -1
 	}
-	return col, row
+	return GetSq(file, rank)
 }
 
 // SetPieceAt places a piece using algebraic notation (e.g., "e4")
 func (b *Board) SetPieceAt(sq string, piece Piece) {
-	col, row := Sq(sq)
-	if col != -1 && row != -1 {
-		b.SetPiece(col, row, piece)
+	idx := Sq(sq)
+	if idx != -1 {
+		b.SetPiece(idx, piece)
 	}
 }
 
 // RemovePieceAt removes a piece from the board using algebraic notation (e.g., "e4")
 func (b *Board) RemovePieceAt(sq string) {
-	col, row := Sq(sq)
-	b.SetPiece(col, row, NoPiece)
+	b.SetPieceAt(sq, NoPiece)
 }
-
 
 // GetPieceAt retrieves a piece using algebraic notation (e.g., "e4")
 func (b *Board) GetPieceAt(sq string) Piece {
-	col, row := Sq(sq)
-	return b.GetPiece(col, row)
+	return b.GetPiece(Sq(sq))
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // LoadFEN loads a game state from a FEN string
-func (g *Game) LoadFEN(fen string) error {
+func (g *Game) LoadFEN(fen string) error { // TODO compute zobrist hash
 	parts := strings.Fields(fen)
 	if len(parts) < 4 {
 		return errors.New("invalid FEN: too few fields")
@@ -23,22 +23,22 @@ func (g *Game) LoadFEN(fen string) error {
 	}
 
 	for r, rankStr := range ranks {
-		row := r // FEN starts from rank 8 (row 0) to rank 1 (row 7)
-		col := 0
+		rank := 7 - r // FEN starts from rank 8 (row 7) to rank 1 (row 0)
+		file := 0
 		for _, char := range rankStr {
 			if unicode.IsDigit(char) {
 				emptySquares, _ := strconv.Atoi(string(char))
-				col += emptySquares
+				file += emptySquares
 			} else {
 				piece := NewPieceFromChar(char)
 				if piece == NoPiece {
 					return fmt.Errorf("invalid piece char: %c", char)
 				}
-				g.Board.SetPiece(col, row, piece)
-				col++
+				g.Board.SetPiece(GetSq(file, rank), piece)
+				file++
 			}
 		}
-		if col != 8 {
+		if file != 8 {
 			return fmt.Errorf("invalid FEN: rank %d has wrong width", 8-r)
 		}
 	}
@@ -73,13 +73,11 @@ func (g *Game) LoadFEN(fen string) error {
 	}
 
 	// 4. En passant target square
-	g.EnPassantTargetCol = -1
-	g.EnPassantTargetRow = -1
+	g.EnPassantTarget = -1
 	if parts[3] != "-" {
-		col, row := Sq(parts[3])
-		if col != -1 && row != -1 {
-			g.EnPassantTargetCol = col
-			g.EnPassantTargetRow = row
+		sq := Sq(parts[3])
+		if sq != -1 {
+			g.EnPassantTarget = sq
 		}
 	}
 
@@ -117,10 +115,10 @@ func (g *Game) GenerateFEN() string {
 	var sb strings.Builder
 
 	// 1. Piece placement
-	for row := 0; row < 8; row++ {
+	for rank := 7; rank >= 0; rank-- {
 		emptyCount := 0
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
+		for file := 0; file < 8; file++ {
+			piece := g.Board.GetPiece(GetSq(file, rank))
 			if piece == NoPiece {
 				emptyCount++
 			} else {
@@ -134,7 +132,7 @@ func (g *Game) GenerateFEN() string {
 		if emptyCount > 0 {
 			sb.WriteString(strconv.Itoa(emptyCount))
 		}
-		if row < 7 {
+		if rank > 0 {
 			sb.WriteString("/")
 		}
 	}
@@ -171,9 +169,9 @@ func (g *Game) GenerateFEN() string {
 	sb.WriteString(" ")
 
 	// 4. En passant target square
-	if g.EnPassantTargetCol != -1 && g.EnPassantTargetRow != -1 {
-		col := rune('a' + g.EnPassantTargetCol)
-		row := 8 - g.EnPassantTargetRow
+	if g.EnPassantTarget != -1 {
+		col := rune('a' + GetFile(g.EnPassantTarget))
+		row := GetRank(g.EnPassantTarget) + 1
 		sb.WriteString(fmt.Sprintf("%c%d", col, row))
 	} else {
 		sb.WriteString("-")

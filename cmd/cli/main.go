@@ -33,6 +33,7 @@ func main() {
 				fmt.Println("Draw by threefold repetition! Game Over.")
 			case engine.StatusDrawInsufficientMaterial:
 				fmt.Println("Draw by insufficient material! Game Over.")
+			default:
 			}
 			return
 		}
@@ -98,29 +99,27 @@ func PrintBoard(w io.Writer, g *engine.Game) {
 	fmt.Fprintln(w, "  a b c d e f g h")
 	fmt.Fprintln(w, "  ╔═╦═╦═╦═╦═╦═╦═╦═╗")
 
-	for row := 0; row < 8; row++ {
-		fmt.Fprint(w, 8-row)
+	for rank := 0; rank < 8; rank++ {
+		fmt.Fprint(w, 8-rank)
 		fmt.Fprint(w, " ")
 		fmt.Fprint(w, "║")
 
-		for col := 0; col < 8; col++ {
-			piece := g.Board.GetPiece(col, row)
+		for file := 0; file < 8; file++ {
+			piece := g.Board.GetPiece(engine.GetSq(file, rank))
 			if piece != engine.NoPiece {
 				fmt.Fprint(w, piece.GetSymbol())
 			} else {
 				fmt.Fprint(w, " ")
 			}
 
-			if col < 7 {
-				fmt.Fprint(w, "║")
-			} else {
+			if file < 7 {
 				fmt.Fprint(w, "║")
 			}
 		}
 
 		fmt.Fprint(w, " ")
-		fmt.Fprint(w, 8-row)
-		if row < 7 {
+		fmt.Fprint(w, 8-rank)
+		if rank < 7 {
 			fmt.Fprintln(w)
 			fmt.Fprintln(w, "  ╠═╬═╬═╬═╬═╬═╬═╬═╣")
 		}

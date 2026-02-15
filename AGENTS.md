@@ -139,7 +139,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Move validation (rejects illegal moves)
 - ✅ Time management (basic)
 
-### Board State
+### Game State
 
 - ✅ Piece placement
 - ✅ Turn management
@@ -150,77 +150,37 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 
 ## Code Patterns
 
-### Move Struct
-
-```go
-type Move struct {
-    FromCol        int
-    FromRow        int
-    ToCol          int
-    ToRow          int
-    PromotionPiece Piece // 0 if no promotion
-}
-```
-
 ### Accessing Board
 
 ```go
-// Helper methods using algebraic notation (preferred for tests)
-board.SetPieceAt("e4", WhitePawn)
-board.RemovePieceAt("e4")
-piece := board.GetPieceAt("e4")
 
 // Get piece at square
-piece := board.GetPiece(col, row)
+piece := board.GetPiece(sq)
 
 // Check if square is empty
-isEmpty := board.IsEmpty(col, row)
+isEmpty := board.IsEmpty(sq)
 
 // Check if square has player's piece
-isOwnPiece := board.IsOccupiedByColor(col, row, White)
+isOwnPiece := board.IsOccupiedByColor(sq, White)
 
 // Move piece
-success := board.MovePiece(fromCol, fromRow, toCol, toRow)
+success := board.MovePiece(from, to)
 
-// Generate all legal moves for a color
-moves := board.GetLegalMoves(White)
-```
-
-### Adding New Piece Move Generation
-
-All piece moves go in `internal/engine/moves.go`:
-
-```go
-func (mg *MoveGenerator) generateXxxMoves(col, row int, color Color) []Move {
-    var moves []Move
-    
-    // Generate moves based on piece logic
-    // Check bounds: 0 <= col < 8 && 0 <= row < 8
-    // Check piece collision: mg.Board.IsEmpty() or !mg.Board.IsOccupiedByColor()
-    
-    return moves
-}
 ```
 
 ### Adding Tests
 
-Tests follow standard Go pattern in `*_test.go` files. Use `github.com/stretchr/testify/assert` for assertions.
-Tests follow standard Go pattern in `*_test.go` files:
+Use `github.com/stretchr/testify/assert` for assertions.
+Tests follow standard Go pattern in `*_test.go` files.
+
+Useful helper functions for tests:
 
 ```go
-func TestFeature(t *testing.T) {
-    board := NewBoard()  // or NewEmptyBoard()
-    
-    // Setup using algebraic notation
-    board.SetPieceAt("e4", WhitePawn)
-    
-    // Execute
-    result := someFunction()
-    
-    // Assert using testify
-    assert.Equal(t, expected, result)
-}
+board.SetPieceAt("e4", WhitePawn)
+board.RemovePieceAt("e4")
+piece := board.GetPieceAt("e4")
 ```
+
 
 ## Testing Strategy
 
@@ -254,9 +214,9 @@ func TestFeature(t *testing.T) {
 - ✅ Move ordering
 - ✅ Transposition Tables (Zobrist Hashing)
 
-### Phase 6: Expert Features ⏳ PLANNED
+### Phase 6: Expert Features ⏳ IN PROGRESS
 
-- Bitboard Representation
+- Bitboard Representation ✅ COMPLETE
 - Advanced Parallel Search (Lazy SMP)
 - Evaluation Tuning (Piece-Square Tables)
 - Opening Book
@@ -301,6 +261,23 @@ The search now supports iterative deepening and time management. The next step i
   - Implemented MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) to sort captures.
   - Hash move is prioritized above all.
   - Promotions are also prioritized.
+
+#### 5. Implement Killer Moves (`internal/search/move_ordering.go`) ⏳ PENDING
+
+- **Goal**: Improve ordering of quiet moves (non-captures) that cause cutoffs.
+- **Logic**:
+  - Create a `killerMoves [MaxPly][2]Move` table.
+  - When a quiet move causes a beta cutoff (fail-high), store it in the table for that ply.
+  - In `orderMoves`, give these moves a high score (e.g., 900,000) to search them immediately after captures.
+
+#### 6. Implement History Heuristic (`internal/search/move_ordering.go`) ⏳ PENDING
+
+- **Goal**: Order remaining quiet moves based on how often they cause cutoffs globally.
+- **Logic**:
+  - Create a `history [2][64][64]int` table (Color, From, To).
+  - When a quiet move causes a cutoff, increment its history score (e.g., by `depth * depth`).
+  - In `orderMoves`, use this value to sort quiet moves that are not Killer moves.
+  - Periodically age (reduce) scores to keep recent history relevant.
 
 ### Testing Requirements
 

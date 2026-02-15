@@ -53,7 +53,7 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 		return score, engine.Move{}, interrupted
 	}
 
-	moves := game.GetLegalMoves()
+	moves := game.GenerateLegalMoves()
 
 	if len(moves) == 0 {
 		if game.Board.IsKingInCheck(game.CurrentTurn) {

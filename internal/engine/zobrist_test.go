@@ -51,7 +51,7 @@ func TestZobristUndo(t *testing.T) {
 	game := NewGame()
 	initialHash := game.ZobristHash
 
-	move := NewMove(FileE, Rank2, FileE, Rank4) // e2e4
+	move := NewMove(Sq("e2"), Sq("e4"))
 	game.ExecuteMove(move)
 
 	assert.NotEqual(t, initialHash, game.ZobristHash, "Hash should change after move")
@@ -117,14 +117,13 @@ func TestZobristEnPassantCapture(t *testing.T) {
 	game.Board.SetPieceAt("e5", WhitePawn)
 	game.Board.SetPieceAt("d5", BlackPawn)
 	game.CurrentTurn = White
-	game.EnPassantTargetCol = FileD
-	game.EnPassantTargetRow = Rank6 // Target square behind the pawn
+	game.EnPassantTarget = Sq("d6") // Target square for EP capture
 
 	// Initial hash
 	game.ZobristHash = game.ComputeZobristHash()
 
 	// Execute EP capture: e5xd6
-	move := NewMove(FileE, Rank5, FileD, Rank6)
+	move := NewMove(Sq("e5"), Sq("d6"))
 	game.ExecuteMove(move)
 
 	computed := game.ComputeZobristHash()
@@ -145,7 +144,7 @@ func TestZobristPromotion(t *testing.T) {
 	game.ZobristHash = game.ComputeZobristHash()
 
 	// e7e8q
-	move := NewPromotionMove(FileE, Rank7, FileE, Rank8, WhiteQueen)
+	move := NewPromotionMove(Sq("e7"), Sq("e8"), WhiteQueen)
 	game.ExecuteMove(move)
 
 	computed := game.ComputeZobristHash()

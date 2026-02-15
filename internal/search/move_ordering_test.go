@@ -8,8 +8,7 @@ import (
 )
 
 func TestOrderMoves(t *testing.T) {
-	game := engine.NewGame()
-	game.Board.Clear()
+	game := engine.NewEmptyGame()
 
 	game.LoadFEN("k2q4/4P3/8/1pP5/3Q1b2/3p4/8/K7 w - b6 0 1")
 	noisyMoves := game.GetNoisyMoves()
