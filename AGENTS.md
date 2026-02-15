@@ -218,7 +218,8 @@ piece := board.GetPieceAt("e4")
 
 - Bitboard Representation ✅ COMPLETE
 - Advanced Parallel Search (Lazy SMP)
-- Evaluation Tuning (Piece-Square Tables)
+- Evaluation Tuning (Piece-Square Tables) ✅ COMPLETE
+- Tapered Evaluation (Middlegame/Endgame transitions)
 - Opening Book
 - Endgame Tablebases
 - Killer Moves
@@ -278,6 +279,17 @@ The search now supports iterative deepening and time management. The next step i
   - When a quiet move causes a cutoff, increment its history score (e.g., by `depth * depth`).
   - In `orderMoves`, use this value to sort quiet moves that are not Killer moves.
   - Periodically age (reduce) scores to keep recent history relevant.
+
+#### 7. Implement Tapered Evaluation (`internal/search/eval.go`) ⏳ PENDING
+
+- **Goal**: Adjust evaluation weights based on the game phase (Middlegame vs Endgame).
+- **Logic**:
+  - Calculate a "Phase" score based on remaining material (e.g., Pawn=0, Knight=1, Queen=4).
+  - Define two sets of PSTs: `MiddlegamePST` and `EndgamePST`.
+  - **King PST**:
+    - Middlegame: King stays safe in corners/castled position.
+    - Endgame: King becomes active and moves to the center.
+  - Interpolate the final score: `Score = ((MG * phase) + (EG * (TotalPhase - phase))) / TotalPhase`.
 
 ### Testing Requirements
 

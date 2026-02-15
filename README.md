@@ -103,6 +103,7 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures.
 - **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
+- **Evaluation**: Piece-Square Tables (PST) to encourage positional play (center control, king safety).
 - **Killer Moves (Planned)**: Heuristic to prioritize quiet moves that caused cutoffs at the same search depth.
 - **History Heuristic (Planned)**: Global table to prioritize moves that frequently cause cutoffs.
 
@@ -111,7 +112,7 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 **Future Improvements (Phase 6):**
 
 - [ ] Advanced Parallel Search (Lazy SMP)
-- [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
+- [ ] Tapered Evaluation (Variable King PST based on game phase)
 - [ ] Opening Books
 - [ ] Endgame Tablebases
 - [ ] Killer Moves
