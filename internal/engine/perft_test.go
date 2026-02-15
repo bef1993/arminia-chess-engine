@@ -36,3 +36,49 @@ func TestPerft_StartPos_Depth2(t *testing.T) {
 	nodes := perft(game, 2)
 	assert.Equal(t, 400, nodes, "Expected 400 positions after 2 moves")
 }
+
+func TestPerft_StartPos_Depth3(t *testing.T) {
+	game := NewGame()
+	nodes := perft(game, 3)
+	assert.Equal(t, 8902, nodes, "Expected 8,902 positions after 3 moves")
+}
+
+func TestPerft_StartPos_Depth4(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping depth 4 perft in short mode")
+	}
+	game := NewGame()
+	nodes := perft(game, 4)
+	assert.Equal(t, 197281, nodes, "Expected 197,281 positions after 4 moves")
+}
+
+func TestPerft_KiwiPete_Depth3(t *testing.T) {
+	game := NewGame()
+	err := game.LoadFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+	assert.NoError(t, err)
+	nodes := perft(game, 3)
+	assert.Equal(t, 97862, nodes, "Expected 97,862 positions for KiwiPete at depth 3")
+}
+
+// 5268653 nodes/sec
+func BenchmarkPerft_StartPos_Depth5(b *testing.B) {
+	game := NewGame()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		perft(game, 5)
+	}
+	// Depth 5 start pos has 4,865,609 nodes
+	b.ReportMetric(float64(b.N)*4865609/b.Elapsed().Seconds(), "nodes/sec")
+}
+
+// 9543168 nodes/sec
+func BenchmarkPerft_KiwiPete_Depth3(b *testing.B) {
+	game := NewGame()
+	game.LoadFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		perft(game, 3)
+	}
+	// Depth 3 KiwiPete has 97,862 nodes
+	b.ReportMetric(float64(b.N)*97862/b.Elapsed().Seconds(), "nodes/sec")
+}
