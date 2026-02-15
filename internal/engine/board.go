@@ -206,28 +206,19 @@ func (b *Board) FindKing(color Color) int {
 }
 
 // IsSquareAttackedByColor checks if a square can be attacked by any piece of the attacker color
-func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool { // TODO rework so it uses bitboards
-	// Temporary: Convert back to file/rank for sliding logic until Magic Bitboards are implemented
-	file, rank := GetFile(sq), GetRank(sq)
-
+func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
 	// Check for pawn attacks
-	pawnCheckRank := rank + 1 // If attacker is Black, check for pawns on rank+1 (attacking down)
+	// We check if the square is attacked by a pawn of 'attacker' color.
+	// This is equivalent to checking if 'PawnAttacks[Opponent][sq]' overlaps with 'Pieces[Attacker][Pawn]'.
+	opponent := Black
 	if attacker == White {
-		pawnCheckRank = rank - 1 // If attacker is White, check for pawns on rank-1 (attacking up)
+		opponent = Black
+	} else {
+		opponent = White
 	}
-	if pawnCheckRank >= 0 && pawnCheckRank < 8 {
-		if file > 0 {
-			p := b.GetPiece(GetSq(file-1, pawnCheckRank))
-			if p.Type() == Pawn && p.Color() == attacker {
-				return true
-			}
-		}
-		if file < 7 {
-			p := b.GetPiece(GetSq(file+1, pawnCheckRank))
-			if p.Type() == Pawn && p.Color() == attacker {
-				return true
-			}
-		}
+
+	if (PawnAttacks[opponent][sq] & b.Pieces[attacker][Pawn]) != 0 {
+		return true
 	}
 
 	// Check for knight attacks

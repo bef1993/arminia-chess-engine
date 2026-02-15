@@ -130,10 +130,12 @@ var (
 var (
 	KnightAttacks [64]Bitboard
 	KingAttacks   [64]Bitboard
+	PawnAttacks   [2][64]Bitboard // [Color][Square]
 )
 
 func init() {
 	initKnightAndKingAttacks()
+	initPawnAttacks()
 	initMagicBitboards()
 }
 
@@ -166,6 +168,25 @@ func initKnightAndKingAttacks() {
 			if IsOnBoard2D(f, r) {
 				KingAttacks[sq].Set(GetSq(f, r))
 			}
+		}
+	}
+}
+
+func initPawnAttacks() {
+	for sq := 0; sq < 64; sq++ {
+		file := GetFile(sq)
+		rank := GetRank(sq)
+
+		// White Pawns (attack "up" / rank + 1)
+		if rank < 7 {
+			if file > 0 { PawnAttacks[White][sq].Set(GetSq(file-1, rank+1)) }
+			if file < 7 { PawnAttacks[White][sq].Set(GetSq(file+1, rank+1)) }
+		}
+
+		// Black Pawns (attack "down" / rank - 1)
+		if rank > 0 {
+			if file > 0 { PawnAttacks[Black][sq].Set(GetSq(file-1, rank-1)) }
+			if file < 7 { PawnAttacks[Black][sq].Set(GetSq(file+1, rank-1)) }
 		}
 	}
 }

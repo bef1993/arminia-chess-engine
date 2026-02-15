@@ -262,6 +262,23 @@ The search now supports iterative deepening and time management. The next step i
   - Hash move is prioritized above all.
   - Promotions are also prioritized.
 
+#### 5. Implement Killer Moves (`internal/search/move_ordering.go`) ⏳ PENDING
+
+- **Goal**: Improve ordering of quiet moves (non-captures) that cause cutoffs.
+- **Logic**:
+  - Create a `killerMoves [MaxPly][2]Move` table.
+  - When a quiet move causes a beta cutoff (fail-high), store it in the table for that ply.
+  - In `orderMoves`, give these moves a high score (e.g., 900,000) to search them immediately after captures.
+
+#### 6. Implement History Heuristic (`internal/search/move_ordering.go`) ⏳ PENDING
+
+- **Goal**: Order remaining quiet moves based on how often they cause cutoffs globally.
+- **Logic**:
+  - Create a `history [2][64][64]int` table (Color, From, To).
+  - When a quiet move causes a cutoff, increment its history score (e.g., by `depth * depth`).
+  - In `orderMoves`, use this value to sort quiet moves that are not Killer moves.
+  - Periodically age (reduce) scores to keep recent history relevant.
+
 ### Testing Requirements
 
 - Every new feature must have corresponding unit tests

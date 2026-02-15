@@ -103,6 +103,8 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures.
 - **Bitboards (Partial)**: Basic bitboard infrastructure implemented; move generation migration pending.
+- **Killer Moves (Planned)**: Heuristic to prioritize quiet moves that caused cutoffs at the same search depth.
+- **History Heuristic (Planned)**: Global table to prioritize moves that frequently cause cutoffs.
 
 ## Next Steps
 
