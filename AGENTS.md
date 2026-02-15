@@ -150,18 +150,6 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 
 ## Code Patterns
 
-### Move Struct
-
-```go
-type Move struct {
-    FromCol        int
-    FromRow        int
-    ToCol          int
-    ToRow          int
-    PromotionPiece Piece // 0 if no promotion
-}
-```
-
 ### Accessing Board
 
 ```go
@@ -254,9 +242,9 @@ func TestFeature(t *testing.T) {
 - ✅ Move ordering
 - ✅ Transposition Tables (Zobrist Hashing)
 
-### Phase 6: Expert Features ⏳ PLANNED
+### Phase 6: Expert Features ⏳ IN PROGRESS
 
-- Bitboard Representation
+- Bitboard Representation (In Progress, partially implemented)
 - Advanced Parallel Search (Lazy SMP)
 - Evaluation Tuning (Piece-Square Tables)
 - Opening Book

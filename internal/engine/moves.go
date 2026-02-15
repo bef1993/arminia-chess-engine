@@ -50,6 +50,7 @@ func (m Move) String() string {
 			moveStr += "b"
 		case Knight:
 			moveStr += "n"
+		default:
 		}
 	}
 	return moveStr
@@ -195,7 +196,7 @@ func (mg *MoveGenerator) generatePawnMoves(sq int, color Color) []Move {
 
 	// Move forward one square
 	newRow := row + direction
-	if newRow >= 0 && newRow < 8 {
+	if IsOnBoard2D(col, newRow) {
 		toSq := newRow*8 + col
 		if mg.Board.IsEmpty(toSq) {
 			if newRow == promotionRank {
@@ -219,7 +220,7 @@ func (mg *MoveGenerator) generatePawnMoves(sq int, color Color) []Move {
 	for dcol := -1; dcol <= 1; dcol += 2 {
 		newCol := col + dcol
 		newRow := row + direction
-		if newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 {
+		if IsOnBoard2D(newCol, newRow) {
 			toSq := newRow*8 + newCol
 			// Regular capture
 			if !mg.Board.IsEmpty(toSq) && !mg.Board.IsOccupiedByColor(toSq, color) {
@@ -335,7 +336,7 @@ func (mg *MoveGenerator) generateBishopMoves(sq int, color Color) []Move {
 			newRow := row + i*dir[0]
 			newCol := col + i*dir[1]
 
-			if newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8 {
+			if !IsOnBoard2D(newCol, newRow) {
 				break
 			}
 
@@ -365,7 +366,7 @@ func (mg *MoveGenerator) generateRookMoves(sq int, color Color) []Move {
 			newRow := row + i*dir[0]
 			newCol := col + i*dir[1]
 
-			if newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8 {
+			if !IsOnBoard2D(newCol, newRow) {
 				break
 			}
 
@@ -395,7 +396,7 @@ func (mg *MoveGenerator) generateQueenMoves(sq int, color Color) []Move {
 			newRow := row + i*dir[0]
 			newCol := col + i*dir[1]
 
-			if newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8 {
+			if !IsOnBoard2D(newCol, newRow) {
 				break
 			}
 

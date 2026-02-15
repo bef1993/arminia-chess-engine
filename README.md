@@ -25,7 +25,7 @@ The codebase is organized into modular packages:
 
 ## Features
 
-- **Board Representation**: Standard 8x8 chess board with piece placement
+- **Board Representation**: Standard 8x8 chess board with piece placement. **Bitboard representation** is partially implemented (Phase 6).
 - **Piece Types**: Pawn, Knight, Bishop, Rook, Queen, King
 - **Move Generation**: Complete legal move generation for all piece types
 - **Move Validation**: Rejects illegal moves
@@ -90,7 +90,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 | **3** | ✅ Complete    | FEN support, Search algorithm, evaluation function    |
 | **4** | ✅ Complete    | Advanced features (quiescence, time management, etc.) |
 | **5** | ✅ Complete    | Lichess integration (via lichess-bot)                 |
-| **6** | ⏳ Planned     | Expert features (Killer moves, Bitboards, SMP)        |
+| **6** | ⏳ In Progress | Expert features (Killer moves, Bitboards, SMP)        |
 
 For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
@@ -102,12 +102,14 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Iterative Deepening**: Searching to increasing depths to ensure a best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures.
+- **Bitboards (Partial)**: Basic bitboard infrastructure implemented; move generation migration pending.
 
 ## Next Steps
 
 **Future Improvements (Phase 6):**
 
-- [ ] Bitboard Representation
+- [x] Bitboard Representation (First version implemented)
+- [ ] Migrate Move Generation to Bitboards (Optimization)
 - [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
 - [ ] Opening Books

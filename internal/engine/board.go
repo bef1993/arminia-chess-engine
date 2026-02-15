@@ -91,10 +91,19 @@ func (b *Board) InitializeStartingPosition() {
 	b.Occupancy[AnyColor] = b.Occupancy[White] | b.Occupancy[Black]
 }
 
+// IsOnBoard checks if a square index is valid (0-63)
+func IsOnBoard(sq int) bool {
+	return sq >= 0 && sq < 64
+}
+
+// IsOnBoard2D checks if file and rank are valid (0-7)
+func IsOnBoard2D(file, rank int) bool {
+	return file >= 0 && file < 8 && rank >= 0 && rank < 8
+}
+
 // GetPiece returns the piece at the given position
 func (b *Board) GetPiece(sq int) Piece {
-	if sq < 0 || sq >= 64 {
-		// TODO maybe panic?
+	if !IsOnBoard(sq) {
 		return NoPiece
 	}
 	if !b.Occupancy[AnyColor].IsSet(sq) {
@@ -115,14 +124,13 @@ func (b *Board) GetPiece(sq int) Piece {
 			}
 		}
 	}
-	// TODO return panic?
 	return NoPiece
 }
 
 // SetPiece places a piece at the given position
 func (b *Board) SetPiece(sq int, piece Piece) {
-	if sq < 0 || sq >= 64 {
-		return // TODO maybe panic
+	if !IsOnBoard(sq) {
+		return
 	}
 
 	// Clear existing piece
@@ -184,23 +192,23 @@ func (b *Board) FindKing(color Color) int {
 
 // IsSquareAttackedByColor checks if a square can be attacked by any piece of the attacker color
 func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
-	// Temporary: Convert back to col/row for sliding logic until Magic Bitboards are implemented
-	col, row := sq%8, sq/8
+	// Temporary: Convert back to file/rank for sliding logic until Magic Bitboards are implemented
+	file, rank := sq%8, sq/8
 
 	// Check for pawn attacks
-	pawnCheckRow := row + 1 // If attacker is Black, check for pawns on row+1 (attacking down)
+	pawnCheckRank := rank + 1 // If attacker is Black, check for pawns on rank+1 (attacking down)
 	if attacker == White {
-		pawnCheckRow = row - 1 // If attacker is White, check for pawns on row-1 (attacking up)
+		pawnCheckRank = rank - 1 // If attacker is White, check for pawns on rank-1 (attacking up)
 	}
-	if pawnCheckRow >= 0 && pawnCheckRow < 8 {
-		if col > 0 {
-			p := b.GetPiece(pawnCheckRow*8 + col - 1)
+	if pawnCheckRank >= 0 && pawnCheckRank < 8 {
+		if file > 0 {
+			p := b.GetPiece(pawnCheckRank*8 + file - 1)
 			if p.Type() == Pawn && p.Color() == attacker {
 				return true
 			}
 		}
-		if col < 7 {
-			p := b.GetPiece(pawnCheckRow*8 + col + 1)
+		if file < 7 {
+			p := b.GetPiece(pawnCheckRank*8 + file + 1)
 			if p.Type() == Pawn && p.Color() == attacker {
 				return true
 			}
@@ -217,12 +225,12 @@ func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
 	directions := [][2]int{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 	for i, dir := range directions {
 		for dist := 1; dist < 8; dist++ {
-			checkRow := row + dist*dir[0]
-			checkCol := col + dist*dir[1]
-			if checkRow < 0 || checkRow >= 8 || checkCol < 0 || checkCol >= 8 {
+			checkRank := rank + dist*dir[0]
+			checkFile := file + dist*dir[1]
+			if !IsOnBoard2D(checkFile, checkRank) {
 				break // Off board
 			}
-			p := b.GetPiece(checkRow*8 + checkCol)
+			p := b.GetPiece(checkRank*8 + checkFile)
 			if p != NoPiece {
 				if p.Color() == attacker {
 					pt := p.Type()
@@ -263,18 +271,18 @@ func (b *Board) IsKingInCheck(color Color) bool {
 	return b.IsSquareAttackedByColor(kingSq, opponent)
 }
 
-// Sq converts algebraic notation (e.g., "e4") to col, row coordinates.
+// Sq converts algebraic notation (e.g., "e4") to file, rank coordinates.
 // Returns -1 if the string is invalid.
 func Sq(s string) int {
 	if len(s) != 2 {
 		return -1
 	}
-	col := int(s[0] - 'a')
-	row := int(s[1] - '1')
-	if col < 0 || col > 7 || row < 0 || row > 7 {
+	file := int(s[0] - 'a')
+	rank := int(s[1] - '1')
+	if !IsOnBoard2D(file, rank) {
 		return -1
 	}
-	return row*8 + col
+	return rank*8 + file
 }
 
 // SetPieceAt places a piece using algebraic notation (e.g., "e4")
