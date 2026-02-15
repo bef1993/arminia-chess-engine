@@ -21,6 +21,13 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	}
 	*nodes++
 
+	// --- Draw Detection ---
+	// We check for draws before probing the TT. A draw is a draw regardless of whose turn it is.
+	// We check at ply > 0 because we want to search for a win from the root even if it's a 2-fold repetition.
+	if ply > 0 && (game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial()) {
+		return 0, engine.Move{}, false
+	}
+
 	alphaOrig := alpha
 	var ttMove engine.Move
 

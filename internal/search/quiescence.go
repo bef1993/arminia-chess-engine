@@ -20,6 +20,12 @@ func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, no
 		}
 	}
 	*nodes++
+
+	// --- Draw Detection ---
+	if game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial() {
+		return 0, false
+	}
+
 	alphaOrig := alpha
 	var ttMove engine.Move
 
