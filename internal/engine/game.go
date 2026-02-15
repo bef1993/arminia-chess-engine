@@ -502,9 +502,10 @@ func (g *Game) IsInsufficientMaterial() bool {
 	return false
 }
 
-// isKingInCheckAfterMove checks if the king would be in check after the move
-// It temporarily executes the move and checks king safety.
-func (g *Game) isKingInCheckAfterMove(move Move) bool { // TODO use game.ExecuteMove() instead of duplicating logic
+// isKingInCheckAfterMove is a fast check to see if a move is legal.
+// It performs a simplified make/unmake on the board to see if the king is left in check.
+// TODO maybe use ExecuteMove() instead of custom code
+func (g *Game) isKingInCheckAfterMove(move Move) bool {
 	movedPiece := g.Board.GetPiece(move.From)
 	targetPiece := g.Board.GetPiece(move.To)
 
@@ -518,11 +519,18 @@ func (g *Game) isKingInCheckAfterMove(move Move) bool { // TODO use game.Execute
 		g.Board.SetPiece(epCaptureSq, NoPiece)
 	}
 
-	g.Board.MovePiece(move.From, move.To)
+	// Make the move on the board
+	g.Board.SetPiece(move.From, NoPiece)
+	if move.PromotionPiece != NoPiece {
+		g.Board.SetPiece(move.To, move.PromotionPiece)
+	} else {
+		g.Board.SetPiece(move.To, movedPiece)
+	}
+
 	kingInCheck := g.Board.IsKingInCheck(g.CurrentTurn)
 
 	// Undo the move
-	g.Board.MovePiece(move.To, move.From)  // Move back
+	g.Board.SetPiece(move.From, movedPiece)
 	g.Board.SetPiece(move.To, targetPiece) // Restore target
 	if isEnPassant {
 		g.Board.SetPiece(epCaptureSq, epCapturedPiece)

@@ -854,3 +854,35 @@ func TestGetNoisyMovesPinnedCapture(t *testing.T) {
 	// 5. Check h2-h3 (Quiet move) - Should NOT be present
 	assert.False(t, moveMap["h2h3"], "Should not find quiet pawn move (h2-h3)")
 }
+
+func TestPromotionCanBlockChecks(t *testing.T) {
+	game := NewEmptyGame()
+	// Setup: White King at e1, Black Rook at a1 (Check along rank 1)
+	// White Pawn at b2.
+	// Move b2-b1=Q blocks the check.
+	game.Board.SetPieceAt("e1", WhiteKing)
+	game.Board.SetPieceAt("a1", BlackRook)
+	game.Board.SetPieceAt("b2", WhitePawn)
+	game.CurrentTurn = White
+
+	// Verify King is in check initially
+	assert.True(t, game.Board.IsKingInCheck(White), "King should be in check")
+
+	// Construct the promotion move
+	move := NewPromotionMove(Sq("b2"), Sq("b1"), WhiteQueen)
+
+	// Check if it's considered legal (i.e., not leaving king in check)
+	// We access the internal method isKingInCheckAfterMove since we are in the engine package
+	legal := !game.isKingInCheckAfterMove(move)
+	assert.True(t, legal, "Promotion b2-b1=Q should block the check and be legal")
+
+	// Verify a promotion that DOESN'T block is illegal
+	// Setup: Check from e8 (File E)
+	game.Board.SetPieceAt("e8", BlackRook)
+	// Move b2-b1=Q blocks rank 1, but NOT file E
+	// (We need to clear a1 first so we have a single check to test)
+	game.Board.RemovePieceAt("a1")
+	
+	legal = !game.isKingInCheckAfterMove(move)
+	assert.False(t, legal, "Promotion b2-b1=Q does not block check from e8 and should be illegal")
+}

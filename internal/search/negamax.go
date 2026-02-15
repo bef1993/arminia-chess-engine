@@ -72,6 +72,7 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	}
 
 	// Move Ordering: Try the move from TT first (Hash Move)
+	// TODO: Improve move ordering for quiet moves (e.g., Killer Moves, History Heuristic)
 	orderMoves(game, moves, ttMove)
 
 	bestScore := -EvalInfinity

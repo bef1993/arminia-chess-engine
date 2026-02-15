@@ -256,29 +256,34 @@ The search now supports iterative deepening and time management. The next step i
   - `Quiescence` only searches captures (and maybe checks).
   - It uses a "standing pat" score (evaluation of current position) as a lower bound.
 
-#### 4. Implement Move Ordering (`internal/search/move_ordering.go`) ✅ COMPLETE
+#### 4. Implement Basic Move Ordering (`internal/search/move_ordering.go`) ✅ COMPLETE
 
 - **Logic:**
-  - Implemented MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) to sort captures.
+  - Implemented MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) to sort captures and promotions.
+    - This is effective for the noisy moves in `quiescence` search, but `negamax` still needs heuristics for quiet moves (see below)
   - Hash move is prioritized above all.
   - Promotions are also prioritized.
 
-#### 5. Implement Killer Moves (`internal/search/move_ordering.go`) ⏳ PENDING
+#### 5. Advanced Move Ordering (Quiet Moves) (`internal/search/move_ordering.go`) ⏳ PENDING
 
-- **Goal**: Improve ordering of quiet moves (non-captures) that cause cutoffs.
+- **Goal**: Dramatically improve alpha-beta pruning efficiency by sorting quiet moves (non-captures) intelligently within the main `negamax` search.
 - **Logic**:
-  - Create a `killerMoves [MaxPly][2]Move` table.
-  - When a quiet move causes a beta cutoff (fail-high), store it in the table for that ply.
-  - In `orderMoves`, give these moves a high score (e.g., 900,000) to search them immediately after captures.
+  - **Killer Moves**:
+    - Create a `killerMoves [MaxPly][2]Move` table.
+    - When a quiet move causes a beta cutoff (fail-high), store it in the table for that ply.
+    - In `orderMoves`, give these moves a high score to search them immediately after captures.
+  - **History Heuristic**:
+    - Create a `history [Color][From][To]int` table.
+    - When a quiet move causes a cutoff, increment its history score (e.g., by `depth * depth`).
+    - In `orderMoves`, use this value to sort quiet moves that are not Killer moves.
 
-#### 6. Implement History Heuristic (`internal/search/move_ordering.go`) ⏳ PENDING
+#### 6. Implement Check Extensions (`internal/search/negamax.go`) ⏳ PENDING
 
-- **Goal**: Order remaining quiet moves based on how often they cause cutoffs globally.
+- **Goal**: Search deeper in forcing check lines to avoid missing tactical sequences.
 - **Logic**:
-  - Create a `history [2][64][64]int` table (Color, From, To).
-  - When a quiet move causes a cutoff, increment its history score (e.g., by `depth * depth`).
-  - In `orderMoves`, use this value to sort quiet moves that are not Killer moves.
-  - Periodically age (reduce) scores to keep recent history relevant.
+  - In `negamax`, after making a move, check if the opponent's king is now in check.
+  - If it is, increase the search depth for the recursive call by one ply (e.g., call `negamax` with `depth` instead of `depth-1`).
+  - This is a selective extension and should be used carefully to avoid search explosion.
 
 #### 7. Implement Tapered Evaluation (`internal/search/eval.go`) ⏳ PENDING
 

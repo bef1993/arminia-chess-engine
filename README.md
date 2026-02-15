@@ -101,16 +101,15 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
 - **Iterative Deepening**: Searching to increasing depths to ensure a best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
-- **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures.
+- **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
 - **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
 - **Evaluation**: Piece-Square Tables (PST) to encourage positional play (center control, king safety).
-- **Killer Moves (Planned)**: Heuristic to prioritize quiet moves that caused cutoffs at the same search depth.
-- **History Heuristic (Planned)**: Global table to prioritize moves that frequently cause cutoffs.
 
 ## Next Steps
 
 **Future Improvements (Phase 6):**
 
+- [ ] Move ordering for quiet moves
 - [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] Tapered Evaluation (Variable King PST based on game phase)
 - [ ] Opening Books
@@ -118,6 +117,7 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - [ ] Killer Moves
 - [ ] History Heuristic
 - [ ] Check Extensions
+
 
 See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
 
