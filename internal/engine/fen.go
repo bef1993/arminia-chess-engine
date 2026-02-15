@@ -9,7 +9,7 @@ import (
 )
 
 // LoadFEN loads a game state from a FEN string
-func (g *Game) LoadFEN(fen string) error {
+func (g *Game) LoadFEN(fen string) error { // TODO compute zobrist hash
 	parts := strings.Fields(fen)
 	if len(parts) < 4 {
 		return errors.New("invalid FEN: too few fields")

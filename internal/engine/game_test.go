@@ -199,7 +199,7 @@ func TestEnPassantMoveGeneration(t *testing.T) {
 
 	// Now generate moves for white with en passant target
 	game.EnPassantTarget = Sq("d6")
-	moves := game.GetLegalMoves()
+	moves := game.GenerateLegalMoves()
 
 	assert.Equal(t, 2, len(moves))
 
@@ -303,7 +303,7 @@ func TestPawnPromotionMoveGeneration(t *testing.T) {
 	// Place white pawn on e2 (col 4, row 1), one move away from promotion
 	game.Board.SetPieceAt("e7", WhitePawn)
 
-	legalMoves := game.GetLegalMoves()
+	legalMoves := game.GenerateLegalMoves()
 
 	assert.Len(t, legalMoves, 4, "Expected 4 promotion moves")
 
@@ -510,7 +510,7 @@ func TestGetLegalMovesFiltersCheckMoves(t *testing.T) {
 			game := NewGame()
 			tt.setupFn(game)
 
-			got := game.GetLegalMoves()
+			got := game.GenerateLegalMoves()
 
 			assert.GreaterOrEqual(t, len(got), tt.expectMin, "Too few moves")
 			assert.LessOrEqual(t, len(got), tt.expectMax, "Too many moves")
@@ -749,15 +749,7 @@ func TestGetGameStatus(t *testing.T) {
 }
 
 func TestGetNoisyMoves(t *testing.T) {
-	game := NewGame()
-	game.Board.Clear()
-
-	// Setup:
-	// White King at e1
-	// White Pawn at e4
-	// Black Pawn at d5 (capture target)
-	// White Knight at g1 (quiet move available to f3)
-	// Black King at e8
+	game := NewEmptyGame()
 
 	game.Board.SetPieceAt("e1", WhiteKing)
 	game.Board.SetPieceAt("e4", WhitePawn)

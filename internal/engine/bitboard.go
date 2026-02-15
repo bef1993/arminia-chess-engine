@@ -71,13 +71,34 @@ const (
 	H8
 )
 
+// Bitboard Constants
+const (
+	FileA_BB Bitboard = 0x0101010101010101
+	FileB_BB Bitboard = FileA_BB << 1
+	FileC_BB Bitboard = FileA_BB << 2
+	FileD_BB Bitboard = FileA_BB << 3
+	FileE_BB Bitboard = FileA_BB << 4
+	FileF_BB Bitboard = FileA_BB << 5
+	FileG_BB Bitboard = FileA_BB << 6
+	FileH_BB Bitboard = FileA_BB << 7
+
+	Rank1_BB Bitboard = 0xFF
+	Rank2_BB Bitboard = Rank1_BB << 8
+	Rank3_BB Bitboard = Rank1_BB << 16
+	Rank4_BB Bitboard = Rank1_BB << 24
+	Rank5_BB Bitboard = Rank1_BB << 32
+	Rank6_BB Bitboard = Rank1_BB << 40
+	Rank7_BB Bitboard = Rank1_BB << 48
+	Rank8_BB Bitboard = Rank1_BB << 56
+)
+
 // Basic Operations
-func (b *Bitboard) Set(sq int)       { *b |= (1 << sq) }
-func (b *Bitboard) Clear(sq int)     { *b &= ^(1 << sq) }
-func (b Bitboard) IsSet(sq int) bool { return (b & (1 << sq)) != 0 }
+func (b *Bitboard) Set(sq int)        { *b |= (1 << sq) }
+func (b *Bitboard) Clear(sq int)      { *b &= ^(1 << sq) }
+func (b *Bitboard) IsSet(sq int) bool { return (*b & (1 << sq)) != 0 }
 
 // Population Count (number of set bits)
-func (b Bitboard) Count() int { return bits.OnesCount64(uint64(b)) }
+func (b *Bitboard) Count() int { return bits.OnesCount64(uint64(*b)) }
 
 // Get and Clear Least Significant Bit (used for iteration)
 func (b *Bitboard) PopLSB() int {

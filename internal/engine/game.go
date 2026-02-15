@@ -380,7 +380,7 @@ func (g *Game) UnmakeMove() {
 // GetGameStatus returns the current status of the game
 func (g *Game) GetGameStatus() GameStatus {
 	// 1. Check for Checkmate and Stalemate (require move generation)
-	legalMoves := g.GetLegalMoves()
+	legalMoves := g.GenerateLegalMoves()
 	if len(legalMoves) == 0 {
 		if g.Board.IsKingInCheck(g.CurrentTurn) {
 			return StatusCheckmate
@@ -430,7 +430,7 @@ func (g *Game) IsCheckmate() bool {
 	}
 
 	// We assume IsCheckmate is called for the current turn player
-	moves := g.GetLegalMoves()
+	moves := g.GenerateLegalMoves()
 	return len(moves) == 0
 }
 
@@ -441,7 +441,7 @@ func (g *Game) IsStalemate() bool {
 	}
 
 	// We assume IsStalemate is called for the current turn player
-	moves := g.GetLegalMoves()
+	moves := g.GenerateLegalMoves()
 	return len(moves) == 0
 }
 
@@ -520,13 +520,14 @@ func (g *Game) IsInsufficientMaterial() bool {
 	return false
 }
 
-// isMoveSafe checks if a move is legal (doesn't leave king in check).
+// isKingInCheckAfterMove checks if the king would be in check after the move
 // It temporarily executes the move and checks king safety.
-func (g *Game) isMoveSafe(move Move, piece Piece) bool {
+func (g *Game) isKingInCheckAfterMove(move Move) bool { // TODO use game.ExecuteMove() instead of duplicating logic
+	movedPiece := g.Board.GetPiece(move.From)
 	targetPiece := g.Board.GetPiece(move.To)
 
 	// Handle En Passant simulation (remove the captured pawn)
-	isEnPassant := piece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
+	isEnPassant := movedPiece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
 	var epCapturedPiece Piece
 	var epCaptureSq int
 	if isEnPassant {
@@ -536,7 +537,7 @@ func (g *Game) isMoveSafe(move Move, piece Piece) bool {
 	}
 
 	g.Board.MovePiece(move.From, move.To)
-	safe := !g.Board.IsKingInCheck(g.CurrentTurn)
+	kingInCheck := g.Board.IsKingInCheck(g.CurrentTurn)
 
 	// Undo the move
 	g.Board.MovePiece(move.To, move.From)  // Move back
@@ -544,24 +545,17 @@ func (g *Game) isMoveSafe(move Move, piece Piece) bool {
 	if isEnPassant {
 		g.Board.SetPiece(epCaptureSq, epCapturedPiece)
 	}
-	return safe
+	return kingInCheck
 }
 
-// GetLegalMoves returns all legal moves for the current turn, considering game state
-func (g *Game) GetLegalMoves() []Move {
+// GenerateLegalMoves returns all legal moves for the current turn, considering game state
+func (g *Game) GenerateLegalMoves() []Move {
+	pseudoLegalMoves := g.GenerateAllMoves()
+
 	var legalMoves []Move
-
-	for sq := 0; sq < 64; sq++ {
-		piece := g.Board.GetPiece(sq)
-		if piece != NoPiece && piece.Color() == g.CurrentTurn {
-			moves := g.generateMovesForPiece(sq)
-
-			// Filter out moves that leave the king in check
-			for _, move := range moves {
-				if g.isMoveSafe(move, piece) {
-					legalMoves = append(legalMoves, move)
-				}
-			}
+	for _, move := range pseudoLegalMoves {
+		if !g.isKingInCheckAfterMove(move) {
+			legalMoves = append(legalMoves, move)
 		}
 	}
 	return legalMoves
@@ -572,31 +566,27 @@ func (g *Game) GetLegalMoves() []Move {
 func (g *Game) GetNoisyMoves() []Move {
 	var noisyMoves []Move
 
-	for sq := 0; sq < 64; sq++ {
-		piece := g.Board.GetPiece(sq)
-		if piece != NoPiece && piece.Color() == g.CurrentTurn {
-			moves := g.generateMovesForPiece(sq)
+	pseudoLegalMoves := g.GenerateAllMoves()
 
-			for _, move := range moves {
-				// Filter: Only keep Captures and Promotions
-				targetPiece := g.Board.GetPiece(move.To)
-				isCapture := targetPiece != NoPiece
-				isPromotion := move.PromotionPiece != NoPiece
+	for _, move := range pseudoLegalMoves {
+		movedPiece := g.Board.GetPiece(move.From)
+		// Filter: Only keep Captures and Promotions
+		targetPiece := g.Board.GetPiece(move.To)
+		isCapture := targetPiece != NoPiece
+		isPromotion := move.PromotionPiece != NoPiece
 
-				// Check En Passant (special capture case)
-				isEnPassant := piece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
-				if isEnPassant {
-					isCapture = true
-				}
+		// Check En Passant (special capture case)
+		isEnPassant := movedPiece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
+		if isEnPassant {
+			isCapture = true
+		}
 
-				if !isCapture && !isPromotion {
-					continue
-				}
+		if !isCapture && !isPromotion {
+			continue
+		}
 
-				if g.isMoveSafe(move, piece) {
-					noisyMoves = append(noisyMoves, move)
-				}
-			}
+		if !g.isKingInCheckAfterMove(move) {
+			noisyMoves = append(noisyMoves, move)
 		}
 	}
 	return noisyMoves
@@ -604,7 +594,7 @@ func (g *Game) GetNoisyMoves() []Move {
 
 func (g *Game) ValidateMove(move Move) error {
 	// Check if legalMove exists in legal legalMoves
-	legalMoves := g.GetLegalMoves()
+	legalMoves := g.GenerateLegalMoves()
 
 	for _, legalMove := range legalMoves {
 		if legalMove.From == move.From && legalMove.To == move.To &&

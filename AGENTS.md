@@ -139,7 +139,7 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 - ✅ Move validation (rejects illegal moves)
 - ✅ Time management (basic)
 
-### Board State
+### Game State
 
 - ✅ Piece placement
 - ✅ Turn management
@@ -153,62 +153,34 @@ go test ./internal/engine -run TestGeneratePawnMoves -v
 ### Accessing Board
 
 ```go
-// Helper methods using algebraic notation (preferred for tests)
-board.SetPieceAt("e4", WhitePawn)
-board.RemovePieceAt("e4")
-piece := board.GetPieceAt("e4")
 
 // Get piece at square
-piece := board.GetPiece(col, row)
+piece := board.GetPiece(sq)
 
 // Check if square is empty
-isEmpty := board.IsEmpty(col, row)
+isEmpty := board.IsEmpty(sq)
 
 // Check if square has player's piece
-isOwnPiece := board.IsOccupiedByColor(col, row, White)
+isOwnPiece := board.IsOccupiedByColor(sq, White)
 
 // Move piece
-success := board.MovePiece(fromCol, fromRow, toCol, toRow)
+success := board.MovePiece(from, to)
 
-// Generate all legal moves for a color
-moves := board.GetLegalMoves(White)
-```
-
-### Adding New Piece Move Generation
-
-All piece moves go in `internal/engine/moves.go`:
-
-```go
-func (mg *MoveGenerator) generateXxxMoves(col, row int, color Color) []Move {
-    var moves []Move
-    
-    // Generate moves based on piece logic
-    // Check bounds: 0 <= col < 8 && 0 <= row < 8
-    // Check piece collision: mg.Board.IsEmpty() or !mg.Board.IsOccupiedByColor()
-    
-    return moves
-}
 ```
 
 ### Adding Tests
 
-Tests follow standard Go pattern in `*_test.go` files. Use `github.com/stretchr/testify/assert` for assertions.
-Tests follow standard Go pattern in `*_test.go` files:
+Use `github.com/stretchr/testify/assert` for assertions.
+Tests follow standard Go pattern in `*_test.go` files.
+
+Useful helper functions for tests:
 
 ```go
-func TestFeature(t *testing.T) {
-    board := NewBoard()  // or NewEmptyBoard()
-    
-    // Setup using algebraic notation
-    board.SetPieceAt("e4", WhitePawn)
-    
-    // Execute
-    result := someFunction()
-    
-    // Assert using testify
-    assert.Equal(t, expected, result)
-}
+board.SetPieceAt("e4", WhitePawn)
+board.RemovePieceAt("e4")
+piece := board.GetPieceAt("e4")
 ```
+
 
 ## Testing Strategy
 

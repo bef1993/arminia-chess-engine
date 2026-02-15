@@ -206,7 +206,7 @@ func (b *Board) FindKing(color Color) int {
 }
 
 // IsSquareAttackedByColor checks if a square can be attacked by any piece of the attacker color
-func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
+func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool { // TODO rework so it uses bitboards
 	// Temporary: Convert back to file/rank for sliding logic until Magic Bitboards are implemented
 	file, rank := GetFile(sq), GetRank(sq)
 

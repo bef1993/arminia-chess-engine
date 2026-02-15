@@ -1,7 +1,58 @@
 package engine
 
-// Generate all legal moves for the piece on given square
-func (g *Game) generateMovesForPiece(sq int) []Move {
+// GenerateAllMoves generates all pseudo-legal moves for the current position
+func (g *Game) GenerateAllMoves() []Move {
+	var moves []Move
+	color := g.CurrentTurn
+
+	// Pawns
+	pawns := g.Board.Pieces[color][Pawn]
+	for pawns != 0 {
+		sq := pawns.PopLSB()
+		moves = append(moves, g.generatePawnMoves(sq, color)...)
+	}
+
+	// Knights
+	knights := g.Board.Pieces[color][Knight]
+	for knights != 0 {
+		sq := knights.PopLSB()
+		moves = append(moves, g.generateKnightMoves(sq, color)...)
+	}
+
+	// Bishops
+	bishops := g.Board.Pieces[color][Bishop]
+	for bishops != 0 {
+		sq := bishops.PopLSB()
+		moves = append(moves, g.generateBishopMoves(sq, color)...)
+	}
+
+	// Rooks
+	rooks := g.Board.Pieces[color][Rook]
+	for rooks != 0 {
+		sq := rooks.PopLSB()
+		moves = append(moves, g.generateRookMoves(sq, color)...)
+	}
+
+	// Queens
+	queens := g.Board.Pieces[color][Queen]
+	for queens != 0 {
+		sq := queens.PopLSB()
+		moves = append(moves, g.generateQueenMoves(sq, color)...)
+	}
+
+	// King
+	king := g.Board.Pieces[color][King]
+	if king != 0 {
+		sq := king.PopLSB()
+		moves = append(moves, g.generateKingMoves(sq, color)...)
+	}
+
+	return moves
+}
+
+// GenerateMovesForPiece generates all possible moves for a piece at the given square
+// Kept for testing and specific piece logic
+func (g *Game) GenerateMovesForPiece(sq int) []Move {
 	piece := g.Board.GetPiece(sq)
 	if piece == NoPiece {
 		return []Move{}
@@ -30,18 +81,6 @@ func (g *Game) generateMovesForPiece(sq int) []Move {
 
 func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 	var moves []Move
-	rank := GetRank(sq)
-	file := GetFile(sq)
-
-	direction := 1
-	startRank := int(Rank2)
-	promotionRank := int(Rank8)
-
-	if color == Black {
-		direction = -1
-		startRank = int(Rank7)
-		promotionRank = int(Rank1)
-	}
 
 	// Helper function to add promotion moves
 	addPromotionMoves := func(toSq int) {
@@ -51,46 +90,103 @@ func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 		}
 	}
 
-	// Move forward one square
-	newRank := rank + direction
-	if IsOnBoard2D(file, newRank) {
-		toSq := GetSq(file, newRank)
-		if g.Board.IsEmpty(toSq) {
-			if newRank == promotionRank {
+	if color == White {
+		// Single Push
+		toSq := sq + 8
+		if toSq < 64 && !g.Board.Occupancy[AnyColor].IsSet(toSq) {
+			if toSq >= 56 { // Rank 8 (Promotion)
 				addPromotionMoves(toSq)
 			} else {
 				moves = append(moves, NewMove(sq, toSq))
-			}
-
-			// Move forward two squares from starting position
-			if rank == startRank {
-				newRank2 := rank + 2*direction
-				toSq2 := GetSq(file, newRank2)
-				if g.Board.IsEmpty(toSq2) {
-					moves = append(moves, NewMove(sq, toSq2))
+				// Double Push (only if single push was valid and on Rank 2)
+				if sq >= 8 && sq <= 15 { // Rank 2
+					toSq2 := sq + 16
+					if !g.Board.Occupancy[AnyColor].IsSet(toSq2) {
+						moves = append(moves, NewMove(sq, toSq2))
+					}
 				}
 			}
 		}
-	}
 
-	// Capture diagonally
-	for dfile := -1; dfile <= 1; dfile += 2 {
-		newFile := file + dfile
-		newRank := rank + direction
-		if IsOnBoard2D(newFile, newRank) {
-			toSq := GetSq(newFile, newRank)
-			// Regular capture
-			if !g.Board.IsEmpty(toSq) && !g.Board.IsOccupiedByColor(toSq, color) {
-				if newRank == promotionRank {
-					addPromotionMoves(toSq)
-				} else {
+		// Captures
+		// Capture Left (sq + 7) - Valid if not on File A
+		if (sq & 7) != 0 { // sq % 8 != 0
+			toSq := sq + 7
+			if toSq < 64 {
+				if g.Board.Occupancy[Black].IsSet(toSq) {
+					if toSq >= 56 {
+						addPromotionMoves(toSq)
+					} else {
+						moves = append(moves, NewMove(sq, toSq))
+					}
+				} else if toSq == g.EnPassantTarget {
 					moves = append(moves, NewMove(sq, toSq))
 				}
 			}
+		}
+		// Capture Right (sq + 9) - Valid if not on File H
+		if (sq & 7) != 7 { // sq % 8 != 7
+			toSq := sq + 9
+			if toSq < 64 {
+				if g.Board.Occupancy[Black].IsSet(toSq) {
+					if toSq >= 56 {
+						addPromotionMoves(toSq)
+					} else {
+						moves = append(moves, NewMove(sq, toSq))
+					}
+				} else if toSq == g.EnPassantTarget {
+					moves = append(moves, NewMove(sq, toSq))
+				}
+			}
+		}
 
-			// En passant capture (never a promotion)
-			if toSq == g.EnPassantTarget {
+	} else { // Black
+		// Single Push
+		toSq := sq - 8
+		if toSq >= 0 && !g.Board.Occupancy[AnyColor].IsSet(toSq) {
+			if toSq <= 7 { // Rank 1 (Promotion)
+				addPromotionMoves(toSq)
+			} else {
 				moves = append(moves, NewMove(sq, toSq))
+				// Double Push (only if single push was valid and on Rank 7)
+				if sq >= 48 && sq <= 55 { // Rank 7
+					toSq2 := sq - 16
+					if !g.Board.Occupancy[AnyColor].IsSet(toSq2) {
+						moves = append(moves, NewMove(sq, toSq2))
+					}
+				}
+			}
+		}
+
+		// Captures
+		// Capture Right (sq - 7) - Valid if not on File H
+		if (sq & 7) != 7 {
+			toSq := sq - 7
+			if toSq >= 0 {
+				if g.Board.Occupancy[White].IsSet(toSq) {
+					if toSq <= 7 {
+						addPromotionMoves(toSq)
+					} else {
+						moves = append(moves, NewMove(sq, toSq))
+					}
+				} else if toSq == g.EnPassantTarget {
+					moves = append(moves, NewMove(sq, toSq))
+				}
+			}
+		}
+		// Capture Left (sq - 9) - Valid if not on File A
+		if (sq & 7) != 0 {
+			toSq := sq - 9
+			if toSq >= 0 {
+				if g.Board.Occupancy[White].IsSet(toSq) {
+					if toSq <= 7 {
+						addPromotionMoves(toSq)
+					} else {
+						moves = append(moves, NewMove(sq, toSq))
+					}
+				} else if toSq == g.EnPassantTarget {
+					moves = append(moves, NewMove(sq, toSq))
+				}
 			}
 		}
 	}

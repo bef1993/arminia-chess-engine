@@ -14,7 +14,7 @@ func perft(game *Game, depth int) int {
 		return 1
 	}
 
-	moves := game.GetLegalMoves()
+	moves := game.GenerateLegalMoves()
 
 	if depth == 1 {
 		return len(moves)
