@@ -1,7 +1,8 @@
 package engine
 
-// GenerateAllMoves generates all pseudo-legal moves for the current position
-func (g *Game) GenerateAllMoves() []Move {
+// GenerateAllPseudoLegalMoves generates all pseudo-legal moves for the current position
+// (i.e. moves that may leave the king in check). This is used as a first step in move generation before filtering out illegal moves.
+func (g *Game) GenerateAllPseudoLegalMoves() []Move {
 	var moves []Move
 	color := g.CurrentTurn
 
@@ -50,35 +51,6 @@ func (g *Game) GenerateAllMoves() []Move {
 	return moves
 }
 
-// GenerateMovesForPiece generates all possible moves for a piece at the given square
-// Kept for testing and specific piece logic
-func (g *Game) GenerateMovesForPiece(sq int) []Move {
-	piece := g.Board.GetPiece(sq)
-	if piece == NoPiece {
-		return []Move{}
-	}
-
-	var moves []Move
-
-	switch piece.Type() {
-	case Pawn:
-		moves = g.generatePawnMoves(sq, piece.Color())
-	case Knight:
-		moves = g.generateKnightMoves(sq, piece.Color())
-	case Bishop:
-		moves = g.generateBishopMoves(sq, piece.Color())
-	case Rook:
-		moves = g.generateRookMoves(sq, piece.Color())
-	case Queen:
-		moves = g.generateQueenMoves(sq, piece.Color())
-	case King:
-		moves = g.generateKingMoves(sq, piece.Color())
-	case NoType:
-	}
-
-	return moves
-}
-
 func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 	var moves []Move
 
@@ -88,6 +60,11 @@ func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 		for _, piece := range []PieceType{Queen, Rook, Bishop, Knight} {
 			moves = append(moves, NewPromotionMove(sq, toSq, piece.FromColor(color)))
 		}
+	}
+
+	opponent := Black
+	if color == Black {
+		opponent = White
 	}
 
 	if color == White {
@@ -107,39 +84,6 @@ func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 				}
 			}
 		}
-
-		// Captures
-		// Capture Left (sq + 7) - Valid if not on File A
-		if (sq & 7) != 0 { // sq % 8 != 0
-			toSq := sq + 7
-			if toSq < 64 {
-				if g.Board.Occupancy[Black].IsSet(toSq) {
-					if toSq >= 56 {
-						addPromotionMoves(toSq)
-					} else {
-						moves = append(moves, NewMove(sq, toSq))
-					}
-				} else if toSq == g.EnPassantTarget {
-					moves = append(moves, NewMove(sq, toSq))
-				}
-			}
-		}
-		// Capture Right (sq + 9) - Valid if not on File H
-		if (sq & 7) != 7 { // sq % 8 != 7
-			toSq := sq + 9
-			if toSq < 64 {
-				if g.Board.Occupancy[Black].IsSet(toSq) {
-					if toSq >= 56 {
-						addPromotionMoves(toSq)
-					} else {
-						moves = append(moves, NewMove(sq, toSq))
-					}
-				} else if toSq == g.EnPassantTarget {
-					moves = append(moves, NewMove(sq, toSq))
-				}
-			}
-		}
-
 	} else { // Black
 		// Single Push
 		toSq := sq - 8
@@ -157,38 +101,25 @@ func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 				}
 			}
 		}
+	}
 
-		// Captures
-		// Capture Right (sq - 7) - Valid if not on File H
-		if (sq & 7) != 7 {
-			toSq := sq - 7
-			if toSq >= 0 {
-				if g.Board.Occupancy[White].IsSet(toSq) {
-					if toSq <= 7 {
-						addPromotionMoves(toSq)
-					} else {
-						moves = append(moves, NewMove(sq, toSq))
-					}
-				} else if toSq == g.EnPassantTarget {
-					moves = append(moves, NewMove(sq, toSq))
-				}
-			}
+	// Captures using Bitboards (Common for both colors)
+	attacks := PawnAttacks[color][sq]
+
+	// 1. Regular Captures
+	validCaptures := attacks & g.Board.Occupancy[opponent]
+	for validCaptures != 0 {
+		toSq := validCaptures.PopLSB()
+		if (color == White && toSq >= 56) || (color == Black && toSq <= 7) {
+			addPromotionMoves(toSq)
+		} else {
+			moves = append(moves, NewMove(sq, toSq))
 		}
-		// Capture Left (sq - 9) - Valid if not on File A
-		if (sq & 7) != 0 {
-			toSq := sq - 9
-			if toSq >= 0 {
-				if g.Board.Occupancy[White].IsSet(toSq) {
-					if toSq <= 7 {
-						addPromotionMoves(toSq)
-					} else {
-						moves = append(moves, NewMove(sq, toSq))
-					}
-				} else if toSq == g.EnPassantTarget {
-					moves = append(moves, NewMove(sq, toSq))
-				}
-			}
-		}
+	}
+
+	// 2. En Passant
+	if g.EnPassantTarget != -1 && attacks.IsSet(g.EnPassantTarget) {
+		moves = append(moves, NewMove(sq, g.EnPassantTarget))
 	}
 
 	return moves

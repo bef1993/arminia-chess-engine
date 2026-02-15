@@ -532,7 +532,7 @@ func (g *Game) isKingInCheckAfterMove(move Move) bool { // TODO use game.Execute
 
 // GenerateLegalMoves returns all legal moves for the current turn, considering game state
 func (g *Game) GenerateLegalMoves() []Move {
-	pseudoLegalMoves := g.GenerateAllMoves()
+	pseudoLegalMoves := g.GenerateAllPseudoLegalMoves()
 
 	var legalMoves []Move
 	for _, move := range pseudoLegalMoves {
@@ -548,7 +548,7 @@ func (g *Game) GenerateLegalMoves() []Move {
 func (g *Game) GetNoisyMoves() []Move {
 	var noisyMoves []Move
 
-	pseudoLegalMoves := g.GenerateAllMoves()
+	pseudoLegalMoves := g.GenerateAllPseudoLegalMoves()
 
 	for _, move := range pseudoLegalMoves {
 		movedPiece := g.Board.GetPiece(move.From)

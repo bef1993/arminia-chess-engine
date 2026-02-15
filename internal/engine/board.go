@@ -250,6 +250,57 @@ func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool {
 	return false
 }
 
+// GetAttackedSquares returns a bitboard of all squares attacked by the given color.
+// This is useful for evaluation (mobility, king safety) but typically too slow for move generation checks.
+// TODO create test and use it in evaluation (e.g., mobility, king safety)
+func (b *Board) GetAttackedSquares(attacker Color) Bitboard {
+	var attacks Bitboard
+	occ := b.Occupancy[AnyColor]
+
+	// Pawns
+	pawns := b.Pieces[attacker][Pawn]
+	if attacker == White {
+		// White captures Up-Left (<<7) and Up-Right (<<9)
+		// We must mask out files to prevent wrapping attacks
+		attacks |= (pawns & ^FileA_BB) << 7
+		attacks |= (pawns & ^FileH_BB) << 9
+	} else {
+		// Black captures Down-Right (>>7) and Down-Left (>>9)
+		attacks |= (pawns & ^FileH_BB) >> 7
+		attacks |= (pawns & ^FileA_BB) >> 9
+	}
+
+	// Knights
+	knights := b.Pieces[attacker][Knight]
+	for knights != 0 {
+		sq := knights.PopLSB()
+		attacks |= KnightAttacks[sq]
+	}
+
+	// King
+	king := b.Pieces[attacker][King]
+	if king != 0 {
+		sq := king.PopLSB()
+		attacks |= KingAttacks[sq]
+	}
+
+	// Sliding Pieces
+	// We can combine Bishop+Queen and Rook+Queen to reduce loop overhead
+	bishopsQueens := b.Pieces[attacker][Bishop] | b.Pieces[attacker][Queen]
+	for bishopsQueens != 0 {
+		sq := bishopsQueens.PopLSB()
+		attacks |= GetBishopAttacks(sq, occ)
+	}
+
+	rooksQueens := b.Pieces[attacker][Rook] | b.Pieces[attacker][Queen]
+	for rooksQueens != 0 {
+		sq := rooksQueens.PopLSB()
+		attacks |= GetRookAttacks(sq, occ)
+	}
+
+	return attacks
+}
+
 // IsKingInCheck checks if the king of the given color is in check
 func (b *Board) IsKingInCheck(color Color) bool {
 	kingSq := b.FindKing(color)

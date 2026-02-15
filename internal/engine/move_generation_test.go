@@ -8,7 +8,7 @@ import (
 
 // Helper to filter moves for a specific square from GenerateAllMoves
 func getMovesForSquare(g *Game, sq int) []Move {
-	allMoves := g.GenerateAllMoves()
+	allMoves := g.GenerateAllPseudoLegalMoves()
 	var moves []Move
 	for _, m := range allMoves {
 		if m.From == sq {

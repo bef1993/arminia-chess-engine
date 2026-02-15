@@ -102,7 +102,7 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - **Iterative Deepening**: Searching to increasing depths to ensure a best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures.
-- **Bitboards (Partial)**: Basic bitboard infrastructure implemented; move generation migration pending.
+- **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
 - **Killer Moves (Planned)**: Heuristic to prioritize quiet moves that caused cutoffs at the same search depth.
 - **History Heuristic (Planned)**: Global table to prioritize moves that frequently cause cutoffs.
 
@@ -110,8 +110,6 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 
 **Future Improvements (Phase 6):**
 
-- [x] Bitboard Representation (First version implemented)
-- [ ] Migrate Move Generation to Bitboards (Optimization)
 - [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] More Sophisticated Evaluation (Piece-Square Tables, Variable Piece Values)
 - [ ] Opening Books
