@@ -236,28 +236,19 @@ func (b *Board) IsSquareAttackedByColor(sq int, attacker Color) bool { // TODO r
 		return true
 	}
 
-	// Check for sliding pieces (Rook, Bishop, Queen) and King attacks
-	directions := [][2]int{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}}
-	for i, dir := range directions {
-		for dist := 1; dist < 8; dist++ {
-			checkRank := rank + dist*dir[0]
-			checkFile := file + dist*dir[1]
-			if !IsOnBoard2D(checkFile, checkRank) {
-				break // Off board
-			}
-			p := b.GetPiece(GetSq(checkFile, checkRank))
-			if p != NoPiece {
-				if p.Color() == attacker {
-					pt := p.Type()
-					isDiagonal := i < 4
-					isStraight := i >= 4
-					if pt == Queen || (pt == Bishop && isDiagonal) || (pt == Rook && isStraight) {
-						return true
-					}
-				}
-				break // Blocked by a piece
-			}
-		}
+	// Check for sliding pieces (Rook, Bishop, Queen)
+	occ := b.Occupancy[AnyColor]
+
+	// Bishop/Queen (Diagonal)
+	bishopAttacks := GetBishopAttacks(sq, occ)
+	if (bishopAttacks & (b.Pieces[attacker][Bishop] | b.Pieces[attacker][Queen])) != 0 {
+		return true
+	}
+
+	// Rook/Queen (Straight)
+	rookAttacks := GetRookAttacks(sq, occ)
+	if (rookAttacks & (b.Pieces[attacker][Rook] | b.Pieces[attacker][Queen])) != 0 {
+		return true
 	}
 
 	// Check for King attacks (symmetric)

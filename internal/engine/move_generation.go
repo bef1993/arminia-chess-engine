@@ -280,29 +280,13 @@ func (g *Game) generateKnightMoves(sq int, color Color) []Move {
 
 func (g *Game) generateBishopMoves(sq int, color Color) []Move {
 	var moves []Move
-	rank := GetRank(sq)
-	file := GetFile(sq)
-	directions := [][2]int{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}}
 
-	for _, dir := range directions {
-		for i := 1; i < 8; i++ {
-			newRank := rank + i*dir[0]
-			newFile := file + i*dir[1]
+	attacks := GetBishopAttacks(sq, g.Board.Occupancy[AnyColor])
+	validMoves := attacks & ^g.Board.Occupancy[color]
 
-			if !IsOnBoard2D(newFile, newRank) {
-				break
-			}
-
-			toSq := GetSq(newFile, newRank)
-			if g.Board.IsEmpty(toSq) {
-				moves = append(moves, NewMove(sq, toSq))
-			} else if !g.Board.IsOccupiedByColor(toSq, color) {
-				moves = append(moves, NewMove(sq, toSq))
-				break
-			} else {
-				break
-			}
-		}
+	for validMoves != 0 {
+		toSq := validMoves.PopLSB()
+		moves = append(moves, NewMove(sq, toSq))
 	}
 
 	return moves
@@ -310,29 +294,13 @@ func (g *Game) generateBishopMoves(sq int, color Color) []Move {
 
 func (g *Game) generateRookMoves(sq int, color Color) []Move {
 	var moves []Move
-	rank := GetRank(sq)
-	file := GetFile(sq)
-	directions := [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 
-	for _, dir := range directions {
-		for i := 1; i < 8; i++ {
-			newRank := rank + i*dir[0]
-			newFile := file + i*dir[1]
+	attacks := GetRookAttacks(sq, g.Board.Occupancy[AnyColor])
+	validMoves := attacks & ^g.Board.Occupancy[color]
 
-			if !IsOnBoard2D(newFile, newRank) {
-				break
-			}
-
-			toSq := GetSq(newFile, newRank)
-			if g.Board.IsEmpty(toSq) {
-				moves = append(moves, NewMove(sq, toSq))
-			} else if !g.Board.IsOccupiedByColor(toSq, color) {
-				moves = append(moves, NewMove(sq, toSq))
-				break
-			} else {
-				break
-			}
-		}
+	for validMoves != 0 {
+		toSq := validMoves.PopLSB()
+		moves = append(moves, NewMove(sq, toSq))
 	}
 
 	return moves
@@ -340,29 +308,13 @@ func (g *Game) generateRookMoves(sq int, color Color) []Move {
 
 func (g *Game) generateQueenMoves(sq int, color Color) []Move {
 	var moves []Move
-	rank := GetRank(sq)
-	file := GetFile(sq)
-	directions := [][2]int{{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}
 
-	for _, dir := range directions {
-		for i := 1; i < 8; i++ {
-			newRank := rank + i*dir[0]
-			newFile := file + i*dir[1]
+	attacks := GetQueenAttacks(sq, g.Board.Occupancy[AnyColor])
+	validMoves := attacks & ^g.Board.Occupancy[color]
 
-			if !IsOnBoard2D(newFile, newRank) {
-				break
-			}
-
-			toSq := GetSq(newFile, newRank)
-			if g.Board.IsEmpty(toSq) {
-				moves = append(moves, NewMove(sq, toSq))
-			} else if !g.Board.IsOccupiedByColor(toSq, color) {
-				moves = append(moves, NewMove(sq, toSq))
-				break
-			} else {
-				break
-			}
-		}
+	for validMoves != 0 {
+		toSq := validMoves.PopLSB()
+		moves = append(moves, NewMove(sq, toSq))
 	}
 
 	return moves

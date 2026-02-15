@@ -1,6 +1,9 @@
 package engine
 
-import "math/bits"
+import (
+	"math/bits"
+	"math/rand"
+)
 
 type Bitboard uint64
 
@@ -107,6 +110,22 @@ func (b *Bitboard) PopLSB() int {
 	return lsb
 }
 
+// Magic holds magic bitboard parameters for a square
+type Magic struct {
+	Mask   Bitboard
+	Magic  uint64
+	Shift  int
+	Offset int
+}
+
+var (
+	RookMagics   [64]Magic
+	BishopMagics [64]Magic
+
+	RookAttackTable   []Bitboard
+	BishopAttackTable []Bitboard
+)
+
 // Pre-calculated attack tables
 var (
 	KnightAttacks [64]Bitboard
@@ -115,6 +134,7 @@ var (
 
 func init() {
 	initKnightAndKingAttacks()
+	initMagicBitboards()
 }
 
 func initKnightAndKingAttacks() {
@@ -148,4 +168,168 @@ func initKnightAndKingAttacks() {
 			}
 		}
 	}
+}
+
+// GetBishopAttacks returns the attack bitboard for a bishop on a given square with specific occupancy
+func GetBishopAttacks(sq int, occupancy Bitboard) Bitboard {
+	m := &BishopMagics[sq]
+	idx := (uint64(occupancy&m.Mask) * m.Magic) >> m.Shift
+	return BishopAttackTable[m.Offset+int(idx)]
+}
+
+// GetRookAttacks returns the attack bitboard for a rook on a given square with specific occupancy
+func GetRookAttacks(sq int, occupancy Bitboard) Bitboard {
+	m := &RookMagics[sq]
+	idx := (uint64(occupancy&m.Mask) * m.Magic) >> m.Shift
+	return RookAttackTable[m.Offset+int(idx)]
+}
+
+// GetQueenAttacks returns the attack bitboard for a queen (combination of bishop and rook)
+func GetQueenAttacks(sq int, occupancy Bitboard) Bitboard {
+	return GetBishopAttacks(sq, occupancy) | GetRookAttacks(sq, occupancy)
+}
+
+// Magic Bitboard Initialization
+
+func initMagicBitboards() {
+	// Initialize tables
+	// Sizes are approximate based on max bits for rook (12) and bishop (9)
+	// We'll append to them dynamically or pre-allocate if we were strict.
+	// For simplicity in this generator, we'll just let them grow or pre-calc offsets.
+	// Actually, to keep it simple and contiguous:
+	RookAttackTable = make([]Bitboard, 0, 102400)   // ~100k entries
+	BishopAttackTable = make([]Bitboard, 0, 5248) // ~5k entries
+
+	for sq := 0; sq < 64; sq++ {
+		// Rooks
+		mask := rookMask(sq)
+		bits := mask.Count()
+		RookMagics[sq] = findMagic(sq, mask, bits, true)
+
+		// Bishops
+		mask = bishopMask(sq)
+		bits = mask.Count()
+		BishopMagics[sq] = findMagic(sq, mask, bits, false)
+	}
+}
+
+func findMagic(sq int, mask Bitboard, mBits int, isRook bool) Magic {
+	var magic Magic
+	magic.Mask = mask
+	magic.Shift = 64 - mBits
+
+	// Generate all occupancy variations
+	occupancies := getOccupancyVariations(mask)
+	attacks := make([]Bitboard, len(occupancies))
+
+	for i, occ := range occupancies {
+		if isRook {
+			attacks[i] = rookAttacksSlow(sq, occ)
+		} else {
+			attacks[i] = bishopAttacksSlow(sq, occ)
+		}
+	}
+
+	// Find magic number
+	// Use a fixed seed for deterministic behavior
+	rng := rand.New(rand.NewSource(int64(sq) + 1))
+
+	table := make([]Bitboard, 1<<mBits)
+
+	for {
+		// Generate candidate magic
+		cand := rng.Uint64() & rng.Uint64() & rng.Uint64() // Sparse random
+
+		// Verify magic
+		for i := range table {
+			table[i] = 0
+		}
+		ok := true
+
+		for i, occ := range occupancies {
+			idx := (uint64(occ) * cand) >> magic.Shift
+			if table[idx] != 0 && table[idx] != attacks[i] {
+				ok = false
+				break
+			}
+			table[idx] = attacks[i]
+		}
+
+		if ok {
+			magic.Magic = cand
+			// Append table to global table and set offset
+			if isRook {
+				magic.Offset = len(RookAttackTable)
+				RookAttackTable = append(RookAttackTable, table...)
+			} else {
+				magic.Offset = len(BishopAttackTable)
+				BishopAttackTable = append(BishopAttackTable, table...)
+			}
+			return magic
+		}
+	}
+}
+
+func getOccupancyVariations(mask Bitboard) []Bitboard {
+	count := mask.Count()
+	size := 1 << count
+	variations := make([]Bitboard, size)
+
+	// Map bits of mask to indices
+	bitIndices := make([]int, count)
+	tempMask := mask
+	for i := 0; i < count; i++ {
+		bitIndices[i] = tempMask.PopLSB()
+	}
+
+	for i := 0; i < size; i++ {
+		var occ Bitboard
+		for j := 0; j < count; j++ {
+			if (i & (1 << j)) != 0 {
+				occ.Set(bitIndices[j])
+			}
+		}
+		variations[i] = occ
+	}
+	return variations
+}
+
+func rookMask(sq int) Bitboard {
+	var mask Bitboard
+	r, f := GetRank(sq), GetFile(sq)
+	for r2 := r + 1; r2 < 7; r2++ { mask.Set(GetSq(f, r2)) }
+	for r2 := r - 1; r2 > 0; r2-- { mask.Set(GetSq(f, r2)) }
+	for f2 := f + 1; f2 < 7; f2++ { mask.Set(GetSq(f2, r)) }
+	for f2 := f - 1; f2 > 0; f2-- { mask.Set(GetSq(f2, r)) }
+	return mask
+}
+
+func bishopMask(sq int) Bitboard {
+	var mask Bitboard
+	r, f := GetRank(sq), GetFile(sq)
+	for r2, f2 := r+1, f+1; r2 < 7 && f2 < 7; r2, f2 = r2+1, f2+1 { mask.Set(GetSq(f2, r2)) }
+	for r2, f2 := r+1, f-1; r2 < 7 && f2 > 0; r2, f2 = r2+1, f2-1 { mask.Set(GetSq(f2, r2)) }
+	for r2, f2 := r-1, f+1; r2 > 0 && f2 < 7; r2, f2 = r2-1, f2+1 { mask.Set(GetSq(f2, r2)) }
+	for r2, f2 := r-1, f-1; r2 > 0 && f2 > 0; r2, f2 = r2-1, f2-1 { mask.Set(GetSq(f2, r2)) }
+	return mask
+}
+
+func rookAttacksSlow(sq int, block Bitboard) Bitboard {
+	var attacks Bitboard
+	r, f := GetRank(sq), GetFile(sq)
+	for r2 := r + 1; r2 < 8; r2++ { s := GetSq(f, r2); attacks.Set(s); if block.IsSet(s) { break } }
+	for r2 := r - 1; r2 >= 0; r2-- { s := GetSq(f, r2); attacks.Set(s); if block.IsSet(s) { break } }
+	for f2 := f + 1; f2 < 8; f2++ { s := GetSq(f2, r); attacks.Set(s); if block.IsSet(s) { break } }
+	for f2 := f - 1; f2 >= 0; f2-- { s := GetSq(f2, r); attacks.Set(s); if block.IsSet(s) { break } }
+	return attacks
+}
+
+func bishopAttacksSlow(sq int, block Bitboard) Bitboard {
+	var attacks Bitboard
+	r, f := GetRank(sq), GetFile(sq)
+	for r2, f2 := r+1, f+1; r2 < 8 && f2 < 8; r2, f2 = r2+1, f2+1 { s := GetSq(f2, r2); attacks.Set(s); if block.IsSet(s) { break } }
+	for r2, f2 := r+1, f-1; r2 < 8 && f2 >= 0; r2, f2 = r2+1, f2-1 { s := GetSq(f2, r2); attacks.Set(s); if block.IsSet(s) { break } }
+	for r2, f2 := r-1, f+1; r2 >= 0 && f2 < 8; r2, f2 = r2-1, f2+1 { s := GetSq(f2, r2); attacks.Set(s); if block.IsSet(s) { break } }
+	for r2, f2 := r-1, f-1; r2 >= 0 && f2 >= 0; r2, f2 = r2-1, f2-1 { s := GetSq(f2, r2); attacks.Set(s); if block.IsSet(s) { break } }
+	return attacks
 }
