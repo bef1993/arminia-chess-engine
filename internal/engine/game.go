@@ -331,15 +331,13 @@ func (g *Game) UnmakeMove() {
 
 	// Restore LastMove
 	if len(g.MoveHistory) > 0 {
-		lm := g.MoveHistory[len(g.MoveHistory)-1]
-		g.LastMove = &lm
+		g.LastMove = new(g.MoveHistory[len(g.MoveHistory)-1])
 	} else {
 		g.LastMove = nil
 	}
 
 	// Restore pieces on board
 	// 1. Move the piece back from To -> From
-	// Note: The piece at ToCol, ToRow is the one that moved (or promoted piece)
 	movedPiece := g.Board.GetPiece(move.To)
 	g.Board.MovePiece(move.To, move.From)
 
@@ -358,7 +356,7 @@ func (g *Game) UnmakeMove() {
 			captureSq := GetSq(GetFile(move.To), GetRank(move.From))
 			g.Board.SetPiece(captureSq, state.CapturedPiece)
 		} else {
-			// Normal capture: restore piece at ToCol, ToRow
+			// Normal capture: restore piece at To
 			g.Board.SetPiece(move.To, state.CapturedPiece)
 		}
 	}

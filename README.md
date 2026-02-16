@@ -23,48 +23,39 @@ The codebase is organized into modular packages:
   - **`search/`**: Search algorithms (Negamax, Quiescence), evaluation, and transposition tables.
   - **`uci/`**: UCI protocol handling for communication with chess GUIs.
 
-## Features
-
-- **Board Representation**: Standard 8x8 chess board with piece placement. **Bitboard representation** is partially implemented (Phase 6).
-- **Piece Types**: Pawn, Knight, Bishop, Rook, Queen, King
-- **Move Generation**: Complete legal move generation for all piece types
-- **Move Validation**: Rejects illegal moves
-- **Special Moves**: Castling, En Passant, Pawn Promotion
-- **Game State**: Tracks current turn and move history, castling rights, en passant target
-- **Draw Detection**: Stalemate, 50-move rule, Insufficient Material, Threefold Repetition
-- **Display**: ASCII board visualization with Unicode chess symbols
-- **Comprehensive Tests**: Full test coverage for board and move generation
-
-## Building and Running
+## Building, Testing and Running
 
 ### Prerequisites
 
 - Go 1.26 or later
+- UCI-compatible tool or GUI
+- To use the bot on Lichess <https://github.com/lichess-bot-devs/lichess-bot> has to be used as a bridge (use config.yml)
+
+Lichess integration reference: <https://lichess.org/api#tag/Bot>
 
 ### Build All
 
 ```bash
-go build -o bin/arminia-uci.exe ./cmd/uci
-go build -o bin/arminia-cli.exe ./cmd/cli
-```
-
-### Run Interactive CLI
-
-```bash
-# For manual testing
-.\bin\arminia-cli.exe
+go build -o bin/arminia-engine ./cmd/uci &&
+go build -o bin/arminia-engine-cli ./cmd/cli
 ```
 
 ### Run Tests
 
 ```bash
-# Run all tests with coverage
+# Run all tests
 go test ./...
-
-# Run specific package tests
-go test ./internal/engine -v
-go test ./internal/uci -v
+go test -cover ./... # with coverage
 ```
+
+### Run Interactive CLI
+
+```bash
+# For basic manual testing
+./bin/arminia-cli
+```
+
+See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and tips.
 
 ## UCI Protocol Support
 
@@ -76,15 +67,17 @@ Arminia implements the **UCI (Universal Chess Interface)** protocol for engine c
 - ✅ `position fen` - FEN board setup
 - ✅ `go` - Move generation
 - ✅ `setoption` - Option configuration
+  - `Hash` - set the transposition table to given size in MB
 - ✅ `ucinewgame` - Game reset
+- ✅ `stop` - stop the current search
 - ✅ `quit` - Exit
 
 Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 
 ## Development Status
 
-| Phase | Status         | Description                                           |
-| :---- | :------------- | :---------------------------------------------------- |
+| Phase | Status        | Description                                           |
+|:------|:--------------|:------------------------------------------------------|
 | **1** | ✅ Complete    | Board, pieces, move generation                        |
 | **2** | ✅ Complete    | UCI protocol, move validation, special moves          |
 | **3** | ✅ Complete    | FEN support, Search algorithm, evaluation function    |
@@ -92,14 +85,12 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 | **5** | ✅ Complete    | Lichess integration (via lichess-bot)                 |
 | **6** | ⏳ In Progress | Expert features (Killer moves, Bitboards, SMP)        |
 
-For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
-
 ## Implemented Optimizations
 
 - **Zobrist Hashing**: Efficient board state representation for table lookups.
 - **Transposition Tables**: Caching search results to avoid redundant calculations.
 - **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
-- **Iterative Deepening**: Searching to increasing depths to ensure a best move is always available within time limits.
+- **Iterative Deepening**: Searching to increasing depths to ensure the best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
 - **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
@@ -117,25 +108,6 @@ For detailed roadmap and implementation guidance, see [AGENTS.md](AGENTS.md).
 - [ ] Killer Moves
 - [ ] History Heuristic
 - [ ] Check Extensions
-
-
-See [AGENTS.md](AGENTS.md) for development tasks, code patterns, and debugging tips.
-
-Reference: <https://lichess.org/api#tag/Bot>
-
-## Testing
-
-The engine includes comprehensive unit tests:
-
-```bash
-# Run all tests
-go test ./... -v
-
-# Build binaries
-go build -o ./bin/arminia-engine.exe ./cmd/uci
-go build -o ./bin/arminia-cli.exe ./cmd/cli
-
-```
 
 ## License
 

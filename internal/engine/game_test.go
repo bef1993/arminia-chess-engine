@@ -77,11 +77,9 @@ func TestGameEnPassantTarget(t *testing.T) {
 	// Initially no en passant target
 	assert.Equal(t, -1, game.EnPassantTarget, "Expected no en passant target initially")
 
-	// Move white pawn 2 squares forward (e2 to e4 = col 4, row 6 to row 4)
 	move := NewMove(Sq("e2"), Sq("e4"))
 	game.ExecuteMove(move)
 
-	// En passant target should be set to (4, 5)
 	assert.Equal(t, Sq("e3"), game.EnPassantTarget, "Expected en passant target at e3")
 
 	// Make a non-pawn move to clear en passant target
@@ -254,10 +252,10 @@ func TestPawnPromotionForward(t *testing.T) {
 	game := NewGame()
 	game.Board.Clear()
 
-	// Place white pawn on e2 (col 4, row 6), one move away from promotion
+	// Place white pawn one move away from promotion
 	game.Board.SetPieceAt("e7", WhitePawn)
 
-	// Move pawn forward to promotion rank (e1 = row 0)
+	// Move pawn forward to promotion rank
 	move := NewPromotionMove(Sq("e7"), Sq("e8"), WhiteQueen)
 	game.ExecuteMove(move)
 
@@ -276,9 +274,9 @@ func TestPawnPromotionCapture(t *testing.T) {
 	game := NewGame()
 	game.Board.Clear()
 
-	// Place white pawn on e2 (col 4, row 1), one move away from promotion
+	// Place white pawn one move away from promotion
 	game.Board.SetPieceAt("e7", WhitePawn)
-	// Place black pawn on d1 (col 3, row 0) to capture
+	// Place black pawn to capture
 	game.Board.SetPieceAt("d8", BlackPawn)
 
 	// Pawn captures and promotes to Rook
@@ -300,7 +298,7 @@ func TestPawnPromotionMoveGeneration(t *testing.T) {
 	game := NewGame()
 	game.Board.Clear()
 
-	// Place white pawn on e2 (col 4, row 1), one move away from promotion
+	// Place white pawn one move away from promotion
 	game.Board.SetPieceAt("e7", WhitePawn)
 
 	legalMoves := game.GenerateLegalMoves()
@@ -323,11 +321,11 @@ func TestBlackPawnPromotionForward(t *testing.T) {
 	game := NewGame()
 	game.Board.Clear()
 
-	// Place black pawn on e7 (col 4, row 6), one move away from promotion (row 7)
+	// Place black pawn one move away from promotion
 	game.Board.SetPieceAt("e2", BlackPawn)
 	game.CurrentTurn = Black
 
-	// Move pawn forward to promotion rank (e8 = row 7)
+	// Move pawn forward to promotion rank
 	move := NewPromotionMove(Sq("e2"), Sq("e1"), BlackQueen)
 	game.ExecuteMove(move)
 
@@ -351,7 +349,7 @@ func TestCastlingExecution(t *testing.T) {
 	game.Board.SetPieceAt("h1", WhiteRook)
 	game.CastlingRights = WhiteKingside
 
-	// Execute castling move (e1 to g1)
+	// Execute castling move
 	move := NewMove(Sq("e1"), Sq("g1"))
 	game.ExecuteMove(move)
 
@@ -378,7 +376,7 @@ func TestCastlingExecutionQueenside(t *testing.T) {
 	game.Board.SetPieceAt("a1", WhiteRook)
 	game.CastlingRights = WhiteQueenside
 
-	// Execute castling move (e1 to c1)
+	// Execute castling move
 	move := NewMove(Sq("e1"), Sq("c1"))
 	game.ExecuteMove(move)
 
@@ -401,8 +399,6 @@ func TestIsCheckmate(t *testing.T) {
 	game.Board.Clear()
 
 	// Setup Mate (King blocked by own pawns and attacked by Queen)
-	// White King at e1, White Pawns at d1, f1
-	// Black Queen at e3
 	game.Board.SetPieceAt("e1", WhiteKing)
 	game.Board.SetPieceAt("d1", WhitePawn)
 	game.Board.SetPieceAt("f1", WhitePawn)
@@ -417,9 +413,6 @@ func TestIsStalemate(t *testing.T) {
 	game.Board.Clear()
 
 	// Setup Stalemate
-	// Black King at a8 (0,0)
-	// White Queen at c7 (2,1) -> Attacks a7, b7, b8, c8, d8.
-	// King at a8 is NOT in check (knight jump away from c7), but has no moves.
 	game.Board.SetPieceAt("a8", BlackKing)
 	game.Board.SetPieceAt("c7", WhiteQueen)
 	game.Board.SetPieceAt("h1", WhiteKing)
@@ -434,7 +427,6 @@ func TestNotCheckmateWhenCanBlock(t *testing.T) {
 	game.Board.Clear()
 
 	// Setup: White King trapped by own pawns and attacked square
-	// White King at e1
 	game.Board.SetPieceAt("e1", WhiteKing)
 
 	// Block King with own pawns
@@ -882,7 +874,7 @@ func TestPromotionCanBlockChecks(t *testing.T) {
 	// Move b2-b1=Q blocks rank 1, but NOT file E
 	// (We need to clear a1 first so we have a single check to test)
 	game.Board.RemovePieceAt("a1")
-	
+
 	legal = !game.isKingInCheckAfterMove(move)
 	assert.False(t, legal, "Promotion b2-b1=Q does not block check from e8 and should be illegal")
 }

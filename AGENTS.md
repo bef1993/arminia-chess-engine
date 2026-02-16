@@ -2,10 +2,6 @@
 
 This document provides technical guidance for developers and agents working on the Arminia chess engine codebase.
 
-## Project Layout
-
-See [README.md](README.md) for the current project file structure.
-
 ## Key Files & Responsibilities
 
 ### Core Engine (internal/engine/)
