@@ -2,345 +2,125 @@
 
 This document provides technical guidance for developers and agents working on the Arminia chess engine codebase.
 
-## Key Files & Responsibilities
+## Project Architecture
 
-### Core Engine (internal/engine/)
+Arminia is a bitboard-based chess engine written in Go, implementing the UCI protocol.
 
-| File       | Purpose                   | Key Types/Functions                                                    |
-| :--------- | :------------------------ | :--------------------------------------------------------------------- |
-| `piece.go` | Chess piece definitions   | `PieceType` (enum), `Color` (enum), `Piece` struct, `GetSymbol()`      |
-| `board.go` | Board state & operations  | `Board` struct, `NewBoard()`, `MovePiece()`, `GetLegalMoves()`         |
-| `game.go`  | Game management           | `Game` struct, `NewGame()`, `PrintBoard()`, `SwitchTurn()`             |
-| `moves.go` | Move generation algorithm | `MoveGenerator`, `GenerateMovesForPiece()`, 6 piece-specific functions |
+### Directory Structure
 
-### UCI Protocol (internal/uci/)
+```
+cmd/
+├── uci/                  # UCI entry point (for Lichess/GUIs)
+└── cli/                  # CLI entry point (for manual testing)
 
-| File          | Purpose             | Key Functions                                                     |
-| :------------ | :------------------ | :---------------------------------------------------------------- |
-| `protocol.go` | UCI command handler | `Protocol` struct, `Run()`, `handleCommand()`, 7 command handlers |
-
-### Search (internal/search/)
-
-| File        | Purpose             | Key Functions           |
-| :---------- | :------------------ | :---------------------- |
-| `search.go` | Search entry point  | `Search()`              |
-| `negamax.go`| Main search loop    | `negamax()`             |
-| `quiescence.go`| Quiescence search| `quiescence()`          |
-| `move_ordering.go`| Move sorting  | `orderMoves()`          |
-| `tt.go`     | Transposition Table | `TranspositionTable`    |
-| `eval.go`   | Evaluation function | `Evaluate()`            |
-
-### Coordinate System
-
-**Critical:** The board uses **(col, row)** indexing following chess notation:
-
-- **col**: 0-7 representing files a-h (left to right)
-- **row**: 0-7 representing ranks 8-1 (top to bottom in code, but inverted)
-
-```text
-Chess notation:  a8 b8 c8 ... h8
-Code mapping:    (0,0) (1,0) (2,0) ... (7,0)
-                 ...
-Code mapping:    (0,7) (1,7) (2,7) ... (7,7)
-Chess notation:  a1 b1 c1 ... h1
+internal/
+├── engine/               # Core chess logic
+│   ├── bitboard.go       # Bitboard definitions, constants, and attack tables
+│   ├── board.go          # Board struct (Pieces, Occupancy) and operations
+│   ├── fen.go            # FEN parsing and generation
+│   ├── game.go           # Game state, move execution, legality checking
+│   ├── move_generation.go# Pseudo-legal move generation using bitboards
+│   ├── moves.go          # Move struct and UCI string parsing
+│   ├── piece.go          # Piece definitions and constants
+│   └── zobrist.go        # Zobrist hashing for transposition tables
+│
+├── search/               # Search algorithms
+│   ├── search.go         # Iterative deepening entry point
+│   ├── negamax.go        # Alpha-beta search loop
+│   ├── quiescence.go     # Quiescence search for stable positions
+│   ├── eval.go           # Static evaluation function (PSTs)
+│   ├── tt.go             # Transposition Table implementation
+│   └── move_ordering.go  # Move ordering heuristics (MVV-LVA)
+│
+└── uci/                  # UCI Protocol
+    └── protocol.go       # Command parsing and main loop
 ```
 
-Conversion formulas:
+## Core Concepts
 
-- From algebraic (e.g., "e4"): `col = e - 'a' = 4`, `row = 8 - 4 = 4`
-- To algebraic: `file = 'a' + col`, `rank = 8 - row`
+### 1. Board Representation (Bitboards)
+The board is represented using **Bitboards** (`uint64`), where each bit corresponds to a square (0=A1, 63=H8).
 
-### Global Constants
+- **`Board` Struct**:
+  - `Pieces [2][6]Bitboard`: Bitboards for each piece type (Pawn..King) and color (White/Black).
+  - `Occupancy [3]Bitboard`: Aggregate bitboards for White, Black, and Both.
 
-Use these constants instead of raw integers to ensure readability and prevent off-by-one errors.
+- **Helpers**:
+  - `GetRank(sq)`, `GetFile(sq)`, `GetSq(file, rank)`: Coordinate conversion.
+  - `PopLSB()`: Efficiently iterates over set bits in a bitboard.
 
-| Category     | Constants                                                            | Value/Note                     |
-| :----------- | :------------------------------------------------------------------- | :----------------------------- |
-| **Files**    | `FileA` ... `FileH`                                                  | 0 ... 7                        |
-| **Ranks**    | `Rank8` ... `Rank1`                                                  | 0 ... 7 (Note: Rank8 is row 0) |
-| **Colors**   | `White`, `Black`                                                     |                                |
-| **Pieces**   | `Pawn`, `Knight`, `Bishop`, `Rook`, `Queen`, `King`                  |                                |
-| **Empty**    | `NoPiece`                                                            | Represents empty square        |
-| **Castling** | `WhiteKingside`, `WhiteQueenside`, `BlackKingside`, `BlackQueenside` | Bitmasks                       |
-| **Castling** | `AllCastling`, `NoCastling`                                          | Helpers                        |
+### 2. Move Generation
+Move generation is **pseudo-legal** followed by **legality filtering**.
 
-## Development Tasks
+1.  **`GenerateAllPseudoLegalMoves()`** (`move_generation.go`):
+    - Iterates over piece bitboards.
+    - Uses pre-calculated attack tables (`KnightAttacks`, `KingAttacks`, `PawnAttacks`) and sliding piece generators.
+    - Generates moves that *might* leave the king in check.
 
-### Building
+2.  **`GenerateLegalMoves()`** (`game.go`):
+    - Calls `GenerateAllPseudoLegalMoves()`.
+    - Filters moves using `isKingInCheckAfterMove()`, which temporarily makes the move and checks if the king is attacked.
 
-```bash
-# Build both executables
-go build -o bin/arminia-uci.exe ./cmd/uci
-go build -o bin/arminia-cli.exe ./cmd/cli
-```
+### 3. Search & Evaluation
+- **Algorithm**: Negamax with Alpha-Beta pruning and Iterative Deepening.
+- **Quiescence Search**: Explores captures at leaf nodes to avoid the horizon effect.
+- **Transposition Table**: Zobrist hashing is used to cache positions and scores.
+- **Move Ordering**:
+  1.  Hash Move (from TT)
+  2.  Captures (MVV-LVA)
+  3.  Promotions
+  4.  Quiet Moves
+- **Evaluation**: Material balance + Piece-Square Tables (PST) for positional understanding.
 
-### Testing
+## Development Status
 
-```bash
-# Run all tests
-go test ./...
+| Feature       | Status     | Notes                                     |
+|:--------------|:-----------|:------------------------------------------|
+| **Bitboards** | ✅ Complete | Fully implemented for board and move gen. |
+| **Move Gen**  | ✅ Complete | Efficient bitboard-based generation.      |
+| **Search**    | ✅ Complete | Alpha-Beta, ID, Quiescence, TT.           |
+| **Eval**      | ✅ Complete | Material + PST.                           |
+| **UCI**       | ✅ Complete | Supports standard commands + Hash option. |
+| **Lichess**   | ✅ Ready    | Can be used with `lichess-bot`.           |
 
-# Run specific package tests
-go test ./internal/engine -v
-go test ./internal/uci -v
+## Next Steps (Phase 6: Expert Features)
 
-# Run with coverage
-go test ./... -cover
+The engine is functional and strong (estimated ~1800+ Elo). The next phase focuses on advanced optimizations:
 
-# Run specific test
-go test ./internal/engine -run TestGeneratePawnMoves -v
-```
+1.  **Lazy SMP**: Implement parallel search using the "Lazy SMP" algorithm (shared TT, multiple threads searching root).
+2.  **Tapered Evaluation**: Interpolate between Middlegame and Endgame PSTs based on game phase.
+3.  **Killer Moves**: Store quiet moves that caused cutoffs at specific ply depths to prioritize them.
+4.  **History Heuristic**: Score quiet moves based on their historical success to improve ordering.
+5.  **Check Extensions**: Extend search depth when the king is in check to find mates.
+6.  **Endgame Tablebases**: Integrate Syzygy tablebases for perfect endgame play.
 
-### Common Development Pattern
+## Testing
 
-1. **Modify core logic** → `internal/engine/*.go`
-2. **Add tests** → `*_test.go` in same package
-3. **Test changes** → `go test ./internal/engine -v`
-4. **Rebuild binaries** → `go build -o bin/arminia-*.exe ./cmd/...`
-5. **Manual testing** → `echo "commands" | .\bin\arminia-uci.exe`
-6. **Update Documentation** → Update `README.md` and `AGENTS.md` to reflect new features/status.
+- **Unit Tests**: Run `go test ./...` to verify all components.
+- **Perft**: Use `internal/engine/perft_test.go` to verify move generation counts against known values.
+- **CLI**: Use `bin/arminia-cli` for manual interaction and debugging.
 
-## Known Limitations & TODOs
+### Best Practices for New Tests
+When adding new tests, prefer using human-readable strings for squares and moves to improve readability and maintainability.
 
-### Move Generation
+- **Setup**: Use `game.Board.SetPieceAt("e4", WhitePawn)` instead of raw indices.
+- **Moves**: Use `game.ParseMove("e2e4")` to create moves from algebraic notation.
+- **Helpers**: Use `Sq("e4")` if you need the integer index of a square.
 
-- ✅ Generates all pseudo-legal moves
-- ✅ Check detection (IsKingInCheck implemented)
-- ✅ Checkmate detection
-- ✅ Stalemate detection
-- ✅ En passant support
-- ✅ Castling support
-- ✅ Pawn promotion logic
-
-### Move Selection
-
-- ✅ Search algorithm (Negamax with Alpha-Beta)
-- ✅ Iterative Deepening
-- ✅ Basic Evaluation function (Material)
-- ✅ Quiescence Search (fixes horizon effect)
-- ✅ Transposition Table (Zobrist Hashing)
-- ✅ Move Ordering (Hash move)
-- ✅ Basic Time Management
-- ✅ Advanced Move Ordering (MVV-LVA)
-- ❌ Killer moves
-- ❌ History Heuristic
-- ❌ Check Extensions
-
-### UCI Protocol
-
-- ✅ Basic command parsing
-- ✅ Position setup from startpos
-- ✅ Move execution via UCI
-- ✅ FEN support
-- ✅ Move validation (rejects illegal moves)
-- ✅ Time management (basic)
-
-### Game State
-
-- ✅ Piece placement
-- ✅ Turn management
-- ✅ Half-move clock (50-move rule)
-- ✅ Full-move counter
-- ✅ Castling rights tracking
-- ✅ En passant target tracking
-
-## Code Patterns
-
-### Accessing Board
-
+Example:
 ```go
-
-// Get piece at square
-piece := board.GetPiece(sq)
-
-// Check if square is empty
-isEmpty := board.IsEmpty(sq)
-
-// Check if square has player's piece
-isOwnPiece := board.IsOccupiedByColor(sq, White)
-
-// Move piece
-success := board.MovePiece(from, to)
-
+func TestMyFeature(t *testing.T) {
+    game := NewEmptyGame()
+    game.Board.SetPieceAt("e1", WhiteKing)
+    
+    move, _ := game.ParseMove("e1g1")
+    game.ExecuteMove(move)
+    
+    assert.Equal(t, WhiteKing, game.Board.GetPieceAt("g1"))
+}
 ```
 
-### Adding Tests
-
-Use `github.com/stretchr/testify/assert` for assertions.
-Tests follow standard Go pattern in `*_test.go` files.
-
-Useful helper functions for tests:
-
-```go
-board.SetPieceAt("e4", WhitePawn)
-board.RemovePieceAt("e4")
-piece := board.GetPieceAt("e4")
-```
-
-
-## Testing Strategy
-
-### Test Organization
-
-- **piece_test.go**: Piece creation, symbol generation
-- **board_test.go**: Board operations, piece access, movement
-- **game_test.go**: Game initialization, turn switching
-- **moves_test.go**: Move generation for all pieces (biggest test file)
-- **protocol_test.go**: UCI command handling
-
-### Test Coverage by Area
-
-- Move generation: 25+ tests (board state, piece-specific, captures, blocks)
-- Board operations: 15+ tests (placement, access, bounds)
-- Game state: 5+ tests (initialization, turn switching)
-- UCI protocol: 10+ tests (command parsing, position, moves)
-
-### NewEmptyBoard() vs NewBoard()
-
-- `NewBoard()`: Standard chess starting position
-- `NewEmptyBoard()`: Empty 8x8 board (useful for isolated move tests)
-
-## Phase Dependencies
-
-### Phase 4: Advanced Features ✅ COMPLETE
-
-- ✅ Quiescence search
-- ✅ Iterative Deepening
-- ✅ Time management
-- ✅ Move ordering
-- ✅ Transposition Tables (Zobrist Hashing)
-
-### Phase 6: Expert Features ⏳ IN PROGRESS
-
-- Bitboard Representation ✅ COMPLETE
-- Advanced Parallel Search (Lazy SMP)
-- Evaluation Tuning (Piece-Square Tables) ✅ COMPLETE
-- Tapered Evaluation (Middlegame/Endgame transitions)
-- Opening Book
-- Endgame Tablebases
-- Killer Moves
-- History Heuristic
-- Check Extensions
-
-## Next Steps for Agents
-
-### High Priority: Heuristic Move Ordering (Phase 4) ✅ COMPLETE
-
-The search now supports iterative deepening and time management. The next step is to improve move ordering to increase pruning efficiency.
-
-#### 1. Implement Iterative Deepening (`internal/search/search.go`) ✅ COMPLETE
-
-- **Logic:**
-  - Instead of calling `negamax(depth)`, call it in a loop: depth 1, 2, 3...
-  - This allows the engine to always have a "best move" ready if time runs out.
-  - It also helps with move ordering (best move from depth d-1 is searched first at depth d).
-
-#### 2. Implement Time Management (`internal/uci/protocol.go` & `internal/search/`) ✅ COMPLETE
-
-- **Logic:**
-  - Calculate allocated time for the move based on `wtime`, `btime`, `winc`, `binc`.
-  - Standard formula: `Time = (TimeLeft / MovesToGo) + Increment`. Default MovesToGo ~ 40.
-  - Pass a `context` or `stop` channel to the search function.
-  - In `negamax`, check periodically (every 2048 nodes) if time is up.
-
-#### 3. Implement Quiescence Search (`internal/search/quiescence.go`) ✅ COMPLETE
-
-- **Problem:** The horizon effect (engine stops searching in the middle of a capture sequence).
-- **Logic:**
-
-  - At depth 0, instead of calling `Evaluate()`, call `Quiescence()`.
-  - `Quiescence` only searches captures (and maybe checks).
-  - It uses a "standing pat" score (evaluation of current position) as a lower bound.
-
-#### 4. Implement Basic Move Ordering (`internal/search/move_ordering.go`) ✅ COMPLETE
-
-- **Logic:**
-  - Implemented MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) to sort captures and promotions.
-    - This is effective for the noisy moves in `quiescence` search, but `negamax` still needs heuristics for quiet moves (see below)
-  - Hash move is prioritized above all.
-  - Promotions are also prioritized.
-
-#### 5. Advanced Move Ordering (Quiet Moves) (`internal/search/move_ordering.go`) ⏳ PENDING
-
-- **Goal**: Dramatically improve alpha-beta pruning efficiency by sorting quiet moves (non-captures) intelligently within the main `negamax` search.
-- **Logic**:
-  - **Killer Moves**:
-    - Create a `killerMoves [MaxPly][2]Move` table.
-    - When a quiet move causes a beta cutoff (fail-high), store it in the table for that ply.
-    - In `orderMoves`, give these moves a high score to search them immediately after captures.
-  - **History Heuristic**:
-    - Create a `history [Color][From][To]int` table.
-    - When a quiet move causes a cutoff, increment its history score (e.g., by `depth * depth`).
-    - In `orderMoves`, use this value to sort quiet moves that are not Killer moves.
-
-#### 6. Implement Check Extensions (`internal/search/negamax.go`) ⏳ PENDING
-
-- **Goal**: Search deeper in forcing check lines to avoid missing tactical sequences.
-- **Logic**:
-  - In `negamax`, after making a move, check if the opponent's king is now in check.
-  - If it is, increase the search depth for the recursive call by one ply (e.g., call `negamax` with `depth` instead of `depth-1`).
-  - This is a selective extension and should be used carefully to avoid search explosion.
-
-#### 7. Implement Tapered Evaluation (`internal/search/eval.go`) ⏳ PENDING
-
-- **Goal**: Adjust evaluation weights based on the game phase (Middlegame vs Endgame).
-- **Logic**:
-  - Calculate a "Phase" score based on remaining material (e.g., Pawn=0, Knight=1, Queen=4).
-  - Define two sets of PSTs: `MiddlegamePST` and `EndgamePST`.
-  - **King PST**:
-    - Middlegame: King stays safe in corners/castled position.
-    - Endgame: King becomes active and moves to the center.
-  - Interpolate the final score: `Score = ((MG * phase) + (EG * (TotalPhase - phase))) / TotalPhase`.
-
-### Testing Requirements
-
-- Every new feature must have corresponding unit tests
-- All 60+ existing tests must pass
-- New tests should follow existing patterns in `*_test.go` files
-- Aim for >80% code coverage
-
-## Debugging Tips
-
-### Unit Test Debugging
-
-```bash
-# Run all tests with output
-go test ./... -v
-
-# Run single test with output
-go test ./internal/engine -run TestGenerateBishopMovesFromMiddle -v
-
-# Run with print statements
-go test ./internal/engine -v -count=1
-```
-
-### Common Issues
-
-**Issue:** Tests fail after code changes
-
-- **Fix:** Verify coordinate system hasn't been confused (col vs row)
-- Check: Are you using (col, row) consistently?
-
-**Issue:** Move generation counts are wrong
-
-- **Fix:** Use `NewEmptyBoard()` for isolated tests
-- **Fix:** Verify board bounds checking in loops
-
-**Issue:** UCI binary doesn't respond
-
-- **Fix:** Check if command ends with newline: `"command\nquit\n"`
-- **Fix:** Verify binary was rebuilt with `go build`
-
-## Implementation Checklist Template
-
-When working on a feature:
-
-- [ ] Read related code and tests
-- [ ] Write test cases first (TDD)
-- [ ] Implement feature
-- [ ] Run `go test ./...` - all must pass
-- [ ] Run `go build -o bin/arminia-*.exe ./cmd/...` - must succeed
-- [ ] Manual test with binaries
-- [ ] Verify no new lint/format issues
-- [ ] Document changes in code comments
-- [ ] Update README.md and AGENTS.md (mark feature as complete, update roadmap)
+## Code Style
+- Use `go fmt`.
+- Prefer explicit variable names (`rank`, `file`, `sq`) over generic ones (`r`, `c`, `i`).
+- Use `slog` for logging (only in UCI mode or CLI, never in search loop).
