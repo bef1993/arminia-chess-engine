@@ -103,9 +103,8 @@ func TestIterativeDeepening_NodeAccumulation(t *testing.T) {
 }
 
 func TestSearch_RespectsTimeout(t *testing.T) {
-	game := engine.NewGame()
 	// Use a complex position to ensure it doesn't finish depth 20 instantly
-	game.LoadFEN("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
+	game, _ := engine.NewGameFromFEN("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
 
 	// Set a short timeout
 	duration := 50 * time.Millisecond

@@ -39,7 +39,8 @@ func init() {
 	zobristBlackTurn = rng.Uint64()
 }
 
-// ComputeZobristHash calculates the Zobrist hash for the current game state from scratch.
+// ComputeZobristHash calculates the Zobrist hash for the current game state from scratch
+// Also replaces the current hash value
 func (g *Game) ComputeZobristHash() uint64 {
 	var hash uint64
 
@@ -68,5 +69,6 @@ func (g *Game) ComputeZobristHash() uint64 {
 		hash ^= zobristBlackTurn
 	}
 
+	g.ZobristHash = hash
 	return hash
 }

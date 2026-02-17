@@ -100,7 +100,7 @@ func Evaluate(game *engine.Game) int {
 // evaluatePosition calculates the score based on material and piece-square tables.
 // Positive values indicate an advantage for White,
 // negative values indicate an advantage for Black.
-func evaluatePosition(board *engine.Board) int {
+func evaluatePosition(board engine.Board) int {
 	score := 0
 	score += evaluatePiece(board, engine.Pawn, &pawnPST, engine.PawnValue)
 	score += evaluatePiece(board, engine.Knight, &knightPST, engine.KnightValue)
@@ -111,7 +111,7 @@ func evaluatePosition(board *engine.Board) int {
 	return score
 }
 
-func evaluatePiece(board *engine.Board, pieceType engine.PieceType, table *[64]int, val int) int {
+func evaluatePiece(board engine.Board, pieceType engine.PieceType, table *[64]int, val int) int {
 	score := 0
 	// White
 	bb := board.Pieces[engine.White][pieceType]

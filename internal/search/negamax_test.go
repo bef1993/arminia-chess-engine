@@ -18,11 +18,10 @@ func assertMateScore(t *testing.T, score int) {
 }
 
 func TestNegamax_FindsMateInOne(t *testing.T) {
-	game := engine.NewGame()
 	// Unique mate in 1 position
 	// White Queen on d6, Black King on e8. Move Qd6-e6#
 	fen := "3rkr2/8/3Q1p2/4p3/8/8/8/K7 w - - 0 1"
-	err := game.LoadFEN(fen)
+	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
 
 	// Search should find the mate
@@ -36,11 +35,10 @@ func TestNegamax_FindsMateInOne(t *testing.T) {
 }
 
 func TestNegamax_FindsMateInOneBlack(t *testing.T) {
-	game := engine.NewGame()
 	// Mate in 1 for Black
 	// White King at a8, Black King at c7, Black Rook at b1. Move Rb1-a1#
 	fen := "K7/2k5/8/8/8/8/8/1r6 b - - 0 1"
-	err := game.LoadFEN(fen)
+	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
 
 	score, move, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int))
@@ -51,10 +49,9 @@ func TestNegamax_FindsMateInOneBlack(t *testing.T) {
 }
 
 func TestNegamax_FindsMateInTwo(t *testing.T) {
-	game := engine.NewGame()
 	// Unique mate in 2 moves
 	fen := "rn2kb2/ppp2p1Q/6pn/3p4/4q1b1/3P4/PPPK1PPP/RNB2BNR b q - 2 8"
-	err := game.LoadFEN(fen)
+	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
 
 	score, move, _ := negamax(context.Background(), game, 4, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int))
@@ -65,10 +62,9 @@ func TestNegamax_FindsMateInTwo(t *testing.T) {
 }
 
 func TestNegamax_FindsMateInThreeWithEnPassant(t *testing.T) {
-	game := engine.NewGame()
 	// Unique mate in 3 moves involving en passant
 	fen := "rn3k1r/pp2p2p/3pQ1pn/1BpP2N1/5P2/3K4/P1PB2qP/8 w - - 2 17"
-	err := game.LoadFEN(fen)
+	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
 
 	score, move, _ := negamax(context.Background(), game, 6, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int))

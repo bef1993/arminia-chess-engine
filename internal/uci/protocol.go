@@ -211,11 +211,13 @@ func (u *Protocol) handlePosition(args []string) error {
 			fenString = strings.Join(args[1:], " ")
 		}
 
-		if err := u.game.LoadFEN(fenString); err != nil {
+		newGame, err := engine.NewGameFromFEN(fenString)
+		if err != nil {
 			slog.Error("Invalid FEN", "fen", fenString, "error", err)
 			return u.writeLine(fmt.Sprintf("info string Invalid FEN: %v", err))
 		}
 
+		u.game = newGame
 		if len(moveArgs) > 0 {
 			return u.applyMoves(moveArgs)
 		}

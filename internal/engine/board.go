@@ -32,15 +32,15 @@ const (
 )
 
 // NewBoard creates a new chess board with standard starting position
-func NewBoard() *Board {
-	board := &Board{}
+func NewBoard() Board {
+	board := Board{}
 	board.InitializeStartingPosition()
 	return board
 }
 
 // NewEmptyBoard creates a new empty chess board with no pieces
-func NewEmptyBoard() *Board {
-	board := &Board{}
+func NewEmptyBoard() Board {
+	board := Board{}
 	board.Clear()
 	return board
 }
@@ -349,9 +349,4 @@ func (b *Board) RemovePieceAt(sq string) {
 // GetPieceAt retrieves a piece using algebraic notation (e.g., "e4")
 func (b *Board) GetPieceAt(sq string) Piece {
 	return b.GetPiece(Sq(sq))
-}
-
-// Clone creates a deep copy of the board
-func (b *Board) Clone() *Board {
-	return new(*b)
 }

@@ -110,10 +110,9 @@ func TestZobristCastlingRights(t *testing.T) {
 }
 
 func TestZobristEnPassantCapture(t *testing.T) {
-	// Setup a position where EP capture is possible
+	// Set up a position where EP capture is possible
 	// White pawn on e5, Black pawn on d5 (just moved d7-d5)
-	game := NewGame()
-	game.Board.Clear()
+	game := NewEmptyGame()
 	game.Board.SetPieceAt("e5", WhitePawn)
 	game.Board.SetPieceAt("d5", BlackPawn)
 	game.CurrentTurn = White
@@ -149,4 +148,58 @@ func TestZobristPromotion(t *testing.T) {
 
 	computed := game.ComputeZobristHash()
 	assert.Equal(t, computed, game.ZobristHash, "Hash mismatch after promotion")
+}
+
+func TestZobristHashConsistency(t *testing.T) {
+	game := NewGame()
+
+	// Store hashes: initial hash + hash after each move
+	var hashes []uint64
+	hashes = append(hashes, game.ZobristHash)
+
+	// The Opera Game (Morphy vs. Duke of Brunswick/Count Isouard, 1858)
+	moves := []string{
+		"e2e4", "e7e5",
+		"g1f3", "d7d6",
+		"d2d4", "c8g4",
+		"d4e5", "g4f3",
+		"d1f3", "d6e5",
+		"f1c4", "g8f6",
+		"f3b3", "d8e7",
+		"b1c3", "c7c6",
+		"c1g5", "b7b5",
+		"c3b5", "c6b5",
+		"c4b5", "b8d7",
+		"e1c1", "a8d8",
+		"d1d7", "d8d7",
+		"h1d1", "e7e6",
+		"b5d7", "f6d7",
+		"b3b8", "d7b8",
+		"d1d8", // Checkmate
+	}
+
+	// Execute all moves and store hashes
+	for _, moveStr := range moves {
+		move, err := ParseMove(moveStr, game)
+		assert.NoError(t, err, "Failed to parse move %s", moveStr)
+		success := game.ExecuteMove(move)
+		assert.True(t, success, "Failed to execute move %s", moveStr)
+
+		hashes = append(hashes, game.ZobristHash)
+	}
+
+	// Undo all moves and verify hashes match history
+	// We start undoing the last move.
+	// After undoing the last move (index len-1), the hash should match hashes[len-1].
+	// We iterate backwards through the moves.
+	for i := len(moves) - 1; i >= 0; i-- {
+		game.UnmakeMove()
+
+		expectedHash := hashes[i] // Hash BEFORE the move at index i was made
+		assert.Equal(t, expectedHash, game.ZobristHash, "Hash mismatch after undoing move %s (index %d)", moves[i], i)
+
+		// Also verify against computed hash to ensure state is consistent
+		computed := game.ComputeZobristHash()
+		assert.Equal(t, computed, game.ZobristHash, "Computed hash mismatch after undoing move %s", moves[i])
+	}
 }
