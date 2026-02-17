@@ -97,15 +97,31 @@ func (tt *TranspositionTable) Store(hash uint64, depth, score int, flag TTFlag, 
 		// Collision or empty: Always replace
 		replace = true
 	} else {
-		// Same position: Replace if new depth is sufficient
+		// Same position: Replace if new depth is sufficient or better quality
 		oldDepth := int(uint8((oldData >> 16) & 0xFF))
-		if depth >= oldDepth {
+		oldFlag := TTFlag((oldData >> 24) & 0x3)
+
+		if depth > oldDepth {
 			replace = true
+		} else if depth == oldDepth {
+			// If depths are equal, replace unless we are downgrading from Exact to Bound.
+			// 1. If new is Exact, always replace (Upgrade or Refresh).
+			// 2. If old is NOT Exact, always replace (Upgrade or Refresh).
+			if flag == FlagExact || oldFlag != FlagExact {
+				replace = true
+			}
 		}
 	}
 
 	if replace {
 		newData := pack(depth, score, flag, bestMove)
+
+		// Optimization: Preserve the existing move if the new search didn't find one (e.g. fail-low).
+		// This ensures we don't lose the Hash Move for the next search.
+		if bestMove == (engine.Move{}) && (oldKey^oldData) == hash {
+			newData |= oldData & (0xFFFFF << 26) // Copy move bits (20 bits starting at 26)
+		}
+
 		newKey := hash ^ newData
 
 		atomic.StoreUint64(&entry.data, newData)
