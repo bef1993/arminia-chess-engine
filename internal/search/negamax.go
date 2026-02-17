@@ -26,6 +26,8 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	// We check for draws before probing the TT. A draw is a draw regardless of whose turn it is.
 	// We check at ply > 0 because we want to search for a win from the root even if it's a 2-fold repetition.
 	if ply > 0 && (game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial()) {
+		// Store draw score in TT
+		GlobalTT.Store(game.ZobristHash, depth, 0, FlagExact, engine.Move{})
 		return 0, engine.Move{}, false
 	}
 
@@ -65,12 +67,18 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	moves := game.GenerateLegalMoves()
 
 	if len(moves) == 0 {
+		score := 0
 		if game.Board.IsKingInCheck(game.CurrentTurn) {
 			// Checkmate: return a very low score, adjusted by ply to prefer faster mates
-			return -EvalMate + ply, engine.Move{}, false
+			score = -EvalMate + ply
 		}
-		// Stalemate
-		return 0, engine.Move{}, false
+		// Stalemate score is 0
+
+		// Store in TT (Exact score, no move)
+		ttScore := scoreToTT(score, ply)
+		GlobalTT.Store(game.ZobristHash, depth, ttScore, FlagExact, engine.Move{})
+
+		return score, engine.Move{}, false
 	}
 
 	// Move Ordering: Try the move from TT first (Hash Move)
