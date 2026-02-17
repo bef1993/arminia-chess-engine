@@ -3,6 +3,7 @@ package search
 import (
 	"arminia-chess-engine/internal/engine"
 	"context"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func TestNegamax_FindsMateInOne(t *testing.T) {
 	// Search should find the mate
 	// Depth 2 is required because depth 1 only evaluates the position (material),
 	// while depth 2 checks if the opponent has any legal moves left.
-	score, move, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(0), new(0))
+	score, move, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int))
 
 	// Expected move: Qd6-e6#
 	assert.Equal(t, "d6e6", move.String(), "Should find mate d6e6")
@@ -42,7 +43,7 @@ func TestNegamax_FindsMateInOneBlack(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	score, move, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(0), new(0))
+	score, move, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int))
 
 	// Expected move: Rb1-a1#
 	assert.Equal(t, "b1a1", move.String(), "Should find mate b1a1")
@@ -56,7 +57,7 @@ func TestNegamax_FindsMateInTwo(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	score, move, _ := negamax(context.Background(), game, 4, -EvalInfinity, EvalInfinity, 0, new(0), new(0))
+	score, move, _ := negamax(context.Background(), game, 4, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int))
 
 	// Expected move: Qf4+, followed by Qxc1#
 	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
@@ -70,7 +71,7 @@ func TestNegamax_FindsMateInThreeWithEnPassant(t *testing.T) {
 	err := game.LoadFEN(fen)
 	assert.NoError(t, err)
 
-	score, move, _ := negamax(context.Background(), game, 6, -EvalInfinity, EvalInfinity, 0, new(0), new(0))
+	score, move, _ := negamax(context.Background(), game, 6, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int))
 
 	// Expected move: e6c8
 	assert.Equal(t, "e6c8", move.String(), "Should find mate in 3 with en passant")
@@ -91,13 +92,13 @@ func TestNegamax_TTIntegration_ReducesNodeCount(t *testing.T) {
 
 	// 1. First Search (Cold TT)
 	depth := 4
-	nodes1 := 0
-	score1, move1, _ := negamax(context.Background(), game, depth, -EvalInfinity, EvalInfinity, 0, &nodes1, new(0))
+	var nodes1 atomic.Int64
+	score1, move1, _ := negamax(context.Background(), game, depth, -EvalInfinity, EvalInfinity, 0, &nodes1, new(int))
 
 	// 2. Second Search (Warm TT)
 	// We expect the search to find the entry in the TT and return immediately or prune heavily
-	nodes2 := 0
-	score2, move2, _ := negamax(context.Background(), game, depth, -EvalInfinity, EvalInfinity, 0, &nodes2, new(0))
+	var nodes2 atomic.Int64
+	score2, move2, _ := negamax(context.Background(), game, depth, -EvalInfinity, EvalInfinity, 0, &nodes2, new(int))
 
 	// Assertions
 	assert.Equal(t, move1, move2, "Best move should be consistent")
@@ -105,7 +106,7 @@ func TestNegamax_TTIntegration_ReducesNodeCount(t *testing.T) {
 
 	// The second search should visit significantly fewer nodes
 	// In a pure Negamax with TT, if the exact position is found at sufficient depth, nodes2 might be 1.
-	assert.Less(t, nodes2, nodes1, "Second search should visit fewer nodes due to TT hit")
+	assert.Less(t, nodes2.Load(), nodes1.Load(), "Second search should visit fewer nodes due to TT hit")
 }
 
 func TestNegamax_DetectsDrawByRepetition(t *testing.T) {
@@ -141,7 +142,7 @@ func TestNegamax_DetectsDrawByRepetition(t *testing.T) {
 
 	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Game state should recognize the 3-fold repetition")
 
-	score, _, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 1, new(0), new(0))
+	score, _, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 1, new(atomic.Int64), new(int))
 
 	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition, despite material advantage")
 }

@@ -350,3 +350,8 @@ func (b *Board) RemovePieceAt(sq string) {
 func (b *Board) GetPieceAt(sq string) Piece {
 	return b.GetPiece(Sq(sq))
 }
+
+// Clone creates a deep copy of the board
+func (b *Board) Clone() *Board {
+	return new(*b)
+}

@@ -34,11 +34,11 @@ func TestTTIntegration_ReducesNodeCount(t *testing.T) {
 
 	// 1. First Search (Cold TT)
 	depth := 4
-	move1, score1, nodes1 := Search(context.Background(), game, SearchOptions{MaxDepth: depth}, nil)
+	move1, score1, nodes1 := Search(context.Background(), game, SearchOptions{MaxDepth: depth, Threads: 1}, nil)
 
 	// 2. Second Search (Warm TT)
 	// We expect the search to find the entry in the TT and return immediately or prune heavily
-	move2, score2, nodes2 := Search(context.Background(), game, SearchOptions{MaxDepth: depth}, nil)
+	move2, score2, nodes2 := Search(context.Background(), game, SearchOptions{MaxDepth: depth, Threads: 1}, nil)
 
 	// Assertions
 	assert.Equal(t, move1, move2, "Best move should be consistent")
@@ -61,7 +61,7 @@ func TestIterativeDeepening_ReportsInfo(t *testing.T) {
 		defer close(done)
 		for info := range infoCh {
 			reportedDepths = append(reportedDepths, info.Depth)
-			assert.Greater(t, info.Nodes, 0, "Nodes should be > 0")
+			assert.Greater(t, info.Nodes, int64(0), "Nodes should be > 0")
 			assert.NotEqual(t, engine.Move{}, info.BestMove, "Best move should be valid")
 		}
 	}()
@@ -70,8 +70,8 @@ func TestIterativeDeepening_ReportsInfo(t *testing.T) {
 	close(infoCh)
 	<-done
 
-	assert.NotEqual(t, engine.Move{}, move)
-	assert.Greater(t, nodes, 0)
+	assert.NotEqual(t, engine.Move{}, move, "Search should return a valid move")
+	assert.Greater(t, nodes, int64(0), "Search should visit some nodes")
 
 	expectedDepths := []int{1, 2, 3}
 	assert.Equal(t, expectedDepths, reportedDepths, "Info channel should receive updates for depths 1..maxDepth")
@@ -81,7 +81,7 @@ func TestIterativeDeepening_NodeAccumulation(t *testing.T) {
 	game := engine.NewGame()
 	maxDepth := 3
 
-	var lastNodes int
+	var lastNodes int64
 	infoCh := make(chan SearchInfo, 10)
 	done := make(chan struct{})
 
@@ -95,7 +95,7 @@ func TestIterativeDeepening_NodeAccumulation(t *testing.T) {
 		}
 	}()
 
-	_, _, totalNodes := Search(context.Background(), game, SearchOptions{MaxDepth: maxDepth}, infoCh)
+	_, _, totalNodes := Search(context.Background(), game, SearchOptions{MaxDepth: maxDepth, Threads: 1}, infoCh)
 	close(infoCh)
 	<-done
 

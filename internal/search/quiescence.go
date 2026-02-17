@@ -3,23 +3,24 @@ package search
 import (
 	"arminia-chess-engine/internal/engine"
 	"context"
+	"sync/atomic"
 )
 
 // quiescence search extends the search at leaf nodes to avoid the horizon effect.
 // It only considers "noisy" moves (captures and promotions).
 // Returns: score, interrupted
-func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, nodes *int, selDepth *int) (int, bool) {
+func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, nodes *atomic.Int64, selDepth *int) (int, bool) {
 	if ply > *selDepth {
 		*selDepth = ply
 	}
 
 	// Check for timeout every 2048 nodes
-	if (*nodes & 2047) == 0 {
+	if (nodes.Load() & 2047) == 0 {
 		if ctx.Err() != nil {
 			return 0, true
 		}
 	}
-	*nodes++
+	nodes.Add(1)
 
 	// --- Draw Detection ---
 	if game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial() {

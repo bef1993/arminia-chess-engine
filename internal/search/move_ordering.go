@@ -31,6 +31,7 @@ func (s *moveSorter) Less(i, j int) bool { return s.scores[i] > s.scores[j] }
 //   - Queen promotion: 1,009,000.
 //
 // 4. Quiet Moves: 0
+// TODO for Lazy SMP change order so threads do not all search the same move first (e.g., TT move, then top MVV-LVA capture, etc.) to reduce contention on the TT and increase diversity of explored nodes across threads.
 func orderMoves(game *engine.Game, moves []engine.Move, ttMove engine.Move) {
 	scores := make([]int, len(moves))
 

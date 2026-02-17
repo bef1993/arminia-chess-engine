@@ -138,20 +138,31 @@ func (g *Game) ExecuteMove(move Move) bool {
 	isCastling := piece.Type() == King && (move.To == move.From+2 || move.To == move.From-2)
 
 	// Capture state before changes
-	state := g.GameState // This is a copy.
-	state.CapturedPiece = targetPiece
+	// We must perform a deep copy of the PositionHistory slice.
+	// Otherwise, when we append to g.PositionHistory later, we might be modifying
+	// the same underlying array that is part of the state we are trying to save.
+	// This would corrupt the history for the UnmakeMove operation.
+	stateToSave := GameState{
+		CastlingRights:  g.CastlingRights,
+		EnPassantTarget: g.EnPassantTarget,
+		HalfMoveClock:   g.HalfMoveClock,
+		ZobristHash:     g.ZobristHash,
+		CapturedPiece:   targetPiece,
+		PositionHistory: make([]uint64, len(g.PositionHistory)),
+	}
+	copy(stateToSave.PositionHistory, g.PositionHistory)
 
 	// Handle en passant capture (remove attacked pawn)
 	if isEnPassant {
 		// Captured pawn is at [ToCol, FromRow]
 		captureSq := GetSq(GetFile(move.To), GetRank(move.From))
-		state.CapturedPiece = g.Board.GetPiece(captureSq)
+		stateToSave.CapturedPiece = g.Board.GetPiece(captureSq)
 
 		isCapture = true
 		g.Board.SetPiece(captureSq, NoPiece)
 
 		// Update Hash: Remove captured EP pawn
-		epPawn := state.CapturedPiece
+		epPawn := stateToSave.CapturedPiece
 		hash ^= zobristPiece[epPawn.Color()][epPawn.Type()][captureSq]
 	}
 
@@ -253,7 +264,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	}
 
 	// Push state to history
-	g.StateHistory = append(g.StateHistory, state)
+	g.StateHistory = append(g.StateHistory, stateToSave)
 
 	return true
 }
@@ -603,4 +614,29 @@ func (g *Game) ValidateMove(move Move) error {
 	}
 
 	return fmt.Errorf("illegal move")
+}
+
+// Clone creates a deep copy of the game state for parallel search
+func (g *Game) Clone() *Game {
+	newG := &Game{
+		Board:          g.Board.Clone(),
+		CurrentTurn:    g.CurrentTurn,
+		MoveHistory:    make([]Move, len(g.MoveHistory)),
+		LastMove:       nil,
+		FullMoveNumber: g.FullMoveNumber,
+		StateHistory:   make([]GameState, len(g.StateHistory)),
+		GameState:      g.GameState,
+	}
+	copy(newG.MoveHistory, g.MoveHistory)
+	copy(newG.StateHistory, g.StateHistory)
+	if g.LastMove != nil {
+		lm := *g.LastMove
+		newG.LastMove = &lm
+	}
+
+	// Deep copy the PositionHistory slice within the GameState to prevent aliasing issues.
+	newG.GameState.PositionHistory = make([]uint64, len(g.GameState.PositionHistory))
+	copy(newG.GameState.PositionHistory, g.GameState.PositionHistory)
+
+	return newG
 }

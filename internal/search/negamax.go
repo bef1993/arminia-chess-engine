@@ -3,23 +3,24 @@ package search
 import (
 	"arminia-chess-engine/internal/engine"
 	"context"
+	"sync/atomic"
 )
 
 // negamax implements the Negamax algorithm with alpha-beta pruning.
 // ply is the distance from the root of the search tree.
 // Returns: score, bestMove, interrupted
-func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *int, selDepth *int) (int, engine.Move, bool) {
+func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *atomic.Int64, selDepth *int) (int, engine.Move, bool) {
 	if ply > *selDepth {
 		*selDepth = ply
 	}
 
 	// Check for timeout every 2048 nodes
-	if (*nodes & 2047) == 0 {
+	if (nodes.Load() & 2047) == 0 {
 		if ctx.Err() != nil {
 			return 0, engine.Move{}, true
 		}
 	}
-	*nodes++
+	nodes.Add(1)
 
 	// --- Draw Detection ---
 	// We check for draws before probing the TT. A draw is a draw regardless of whose turn it is.
@@ -34,7 +35,8 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	// 1. Transposition Table Lookup
 	if entry, ok := GlobalTT.Probe(game.ZobristHash); ok {
 		ttMove = entry.BestMove
-		if entry.Depth >= depth {
+		// Don't cut off at the root (ply 0) to ensure we search and report stats
+		if ply > 0 && entry.Depth >= depth {
 			score := scoreFromTT(entry.Score, ply)
 			if entry.Flag == FlagExact {
 				return score, entry.BestMove, false
