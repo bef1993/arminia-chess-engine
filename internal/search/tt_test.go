@@ -121,3 +121,64 @@ func TestStorePreservesDeeper(t *testing.T) {
 	assert.Equal(t, 6, entry.Depth, "Should overwrite if new depth is greater")
 	assert.Equal(t, shallowMove, entry.BestMove)
 }
+
+func TestPackUnpack(t *testing.T) {
+	tests := []struct {
+		name  string
+		depth int
+		score int
+		flag  TTFlag
+		move  engine.Move
+	}{
+		{
+			name:  "Standard Entry",
+			depth: 5,
+			score: 150,
+			flag:  FlagExact,
+			move:  engine.NewMove(engine.Sq("e2"), engine.Sq("e4")),
+		},
+		{
+			name:  "Negative Score",
+			depth: 10,
+			score: -300,
+			flag:  FlagLowerBound,
+			move:  engine.NewMove(engine.Sq("a1"), engine.Sq("h8")),
+		},
+		{
+			name:  "Promotion Move",
+			depth: 3,
+			score: 900,
+			flag:  FlagUpperBound,
+			move:  engine.NewPromotionMove(engine.Sq("a7"), engine.Sq("a8"), engine.WhiteQueen),
+		},
+		{
+			name:  "Empty Move",
+			depth: 1,
+			score: 0,
+			flag:  FlagExact,
+			move:  engine.Move{},
+		},
+		{
+			name:  "Null Move from NewMove",
+			depth: 2,
+			score: 10,
+			flag:  FlagExact,
+			move:  engine.NewMove(0, 0), // This is {From: 0, To: 0, PromotionPiece: -1}
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			packed := pack(tt.depth, tt.score, tt.flag, tt.move)
+			// Use a dummy hash since it's not packed
+			hash := uint64(0x1234567890ABCDEF)
+			entry := unpack(hash, packed)
+
+			assert.Equal(t, hash, entry.Hash)
+			assert.Equal(t, tt.depth, entry.Depth)
+			assert.Equal(t, tt.score, entry.Score)
+			assert.Equal(t, tt.flag, entry.Flag)
+			assert.Equal(t, tt.move, entry.BestMove)
+		})
+	}
+}

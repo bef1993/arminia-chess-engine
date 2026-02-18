@@ -179,7 +179,7 @@ func TestFindKing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			board := NewBoard()
-			tt.setupFn(board)
+			tt.setupFn(&board)
 
 			sq := board.FindKing(tt.color)
 
@@ -266,7 +266,7 @@ func TestIsSquareAttackedByColor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			board := NewBoard()
-			tt.setupFn(board)
+			tt.setupFn(&board)
 
 			got := board.IsSquareAttackedByColor(Sq(tt.sq), tt.attacker)
 
@@ -344,7 +344,7 @@ func TestIsKingInCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			board := NewBoard()
-			tt.setupFn(board)
+			tt.setupFn(&board)
 
 			got := board.IsKingInCheck(tt.color)
 

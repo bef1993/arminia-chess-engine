@@ -32,15 +32,15 @@ const (
 )
 
 // NewBoard creates a new chess board with standard starting position
-func NewBoard() *Board {
-	board := &Board{}
+func NewBoard() Board {
+	board := Board{}
 	board.InitializeStartingPosition()
 	return board
 }
 
 // NewEmptyBoard creates a new empty chess board with no pieces
-func NewEmptyBoard() *Board {
-	board := &Board{}
+func NewEmptyBoard() Board {
+	board := Board{}
 	board.Clear()
 	return board
 }

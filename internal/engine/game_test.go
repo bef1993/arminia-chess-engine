@@ -95,7 +95,7 @@ func TestGameExecuteMove(t *testing.T) {
 
 	// Initial state
 	assert.Empty(t, game.MoveHistory, "Expected empty move history at start")
-	assert.Nil(t, game.LastMove, "Expected nil LastMove at start")
+	assert.Nil(t, game.PreviousState, "Expected nil PreviousState at start")
 
 	// Execute a white pawn move
 	move1 := NewMove(Sq("e2"), Sq("e3"))
@@ -106,22 +106,22 @@ func TestGameExecuteMove(t *testing.T) {
 	// Check move was recorded
 	assert.Len(t, game.MoveHistory, 1, "Expected 1 move in history")
 
-	assert.NotNil(t, game.LastMove, "LastMove should be set")
-	assert.Equal(t, Sq("e2"), game.LastMove.From, "LastMove From square incorrect")
-	assert.Equal(t, Sq("e3"), game.LastMove.To, "LastMove To square incorrect")
+	lastMove := game.MoveHistory[len(game.MoveHistory)-1]
+	assert.NotNil(t, game.PreviousState, "PreviousState should be set")
+	assert.Equal(t, move1, lastMove)
 
 	// Check turn switched
 	assert.Equal(t, Black, game.CurrentTurn, "Expected turn to be Black after white move")
 
 	// Full move number should still be 1
-	assert.Equal(t, 1, game.FullMoveNumber, "Expected full move number 1")
+	assert.Equal(t, 1, game.FullMoveCounter, "Expected full move number 1")
 
 	// Execute a black move
 	move2 := NewMove(Sq("e7"), Sq("e5"))
 	game.ExecuteMove(move2)
 
 	// Now full move number should be 2
-	assert.Equal(t, 2, game.FullMoveNumber, "Expected full move number 2 after black moves twice")
+	assert.Equal(t, 2, game.FullMoveCounter, "Expected full move number 2 after black moves twice")
 
 	assert.Equal(t, White, game.CurrentTurn, "Expected turn to be White after black moves")
 }
@@ -609,11 +609,9 @@ func TestIsInsufficientMaterial(t *testing.T) {
 }
 
 func TestThreefoldRepetition(t *testing.T) {
-	game := NewGame()
-	game.Board.Clear()
-	game.CastlingRights = NoCastling // Ensure castling rights don't change
+	game := NewEmptyGame()
 
-	// Setup a position where pieces can move back and forth
+	// Set up a position where pieces can move back and forth
 	game.Board.SetPieceAt("e1", WhiteKing)
 	game.Board.SetPieceAt("e8", BlackKing)
 	game.Board.SetPieceAt("a1", WhiteRook)
@@ -623,7 +621,6 @@ func TestThreefoldRepetition(t *testing.T) {
 	// We need to manually set the position history because we cleared the board
 	// and set pieces manually, bypassing NewGame's initialization
 	game.ZobristHash = game.ComputeZobristHash()
-	game.PositionHistory = []uint64{game.ZobristHash}
 
 	// Move 1: White Rook a1-b1
 	game.ExecuteMove(NewMove(Sq("a1"), Sq("b1")))

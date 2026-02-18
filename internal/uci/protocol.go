@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const defaultThreads = 8
+
 // Protocol represents the UCI protocol handler
 type Protocol struct {
 	input        io.Reader
@@ -21,14 +23,16 @@ type Protocol struct {
 	game         *engine.Game
 	cancelSearch context.CancelFunc
 	searchWg     sync.WaitGroup
+	threads      int
 }
 
 // NewProtocol creates a new UCI protocol handler
 func NewProtocol(input io.Reader, output io.Writer) *Protocol {
 	return &Protocol{
-		input:  input,
-		output: output,
-		game:   engine.NewGame(),
+		input:   input,
+		output:  output,
+		game:    engine.NewGame(),
+		threads: defaultThreads,
 	}
 }
 
@@ -151,6 +155,13 @@ func (u *Protocol) handleSetOption(args []string) error {
 			slog.Info("Resizing Hash", "sizeMB", sizeMB)
 			search.GlobalTT.Resize(sizeMB)
 		}
+	} else if strings.EqualFold(name, "Threads") {
+		threads, err := strconv.Atoi(value)
+		if err == nil {
+			u.ensureSearchStopped()
+			slog.Info("Setting Threads", "count", threads)
+			u.threads = threads
+		}
 	}
 
 	return nil
@@ -200,11 +211,13 @@ func (u *Protocol) handlePosition(args []string) error {
 			fenString = strings.Join(args[1:], " ")
 		}
 
-		if err := u.game.LoadFEN(fenString); err != nil {
+		newGame, err := engine.NewGameFromFEN(fenString)
+		if err != nil {
 			slog.Error("Invalid FEN", "fen", fenString, "error", err)
 			return u.writeLine(fmt.Sprintf("info string Invalid FEN: %v", err))
 		}
 
+		u.game = newGame
 		if len(moveArgs) > 0 {
 			return u.applyMoves(moveArgs)
 		}
@@ -270,6 +283,7 @@ func (u *Protocol) handleGo(args []string) error {
 	// Determine search options
 	options := search.SearchOptions{
 		MaxDepth: limits.Depth,
+		Threads:  u.threads,
 	}
 
 	// If no depth specified, use a high default (effectively infinite with time limit)
@@ -420,9 +434,9 @@ func (u *Protocol) runSearch(options search.SearchOptions, duration time.Duratio
 func (u *Protocol) sendSearchInfo(info search.SearchInfo, start time.Time) {
 	elapsed := time.Since(start)
 	ms := elapsed.Milliseconds()
-	nps := 0
+	var nps int64
 	if elapsed.Seconds() > 0 {
-		nps = int(float64(info.Nodes) / elapsed.Seconds())
+		nps = int64(float64(info.Nodes) / elapsed.Seconds())
 	}
 
 	// Format score (cp or mate)

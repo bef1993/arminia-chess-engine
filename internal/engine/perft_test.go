@@ -53,8 +53,7 @@ func TestPerft_StartPos_Depth4(t *testing.T) {
 }
 
 func TestPerft_KiwiPete_Depth3(t *testing.T) {
-	game := NewGame()
-	err := game.LoadFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+	game, err := NewGameFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
 	assert.NoError(t, err)
 	nodes := perft(game, 3)
 	assert.Equal(t, 97862, nodes, "Expected 97,862 positions for KiwiPete at depth 3")
@@ -73,8 +72,7 @@ func BenchmarkPerft_StartPos_Depth5(b *testing.B) {
 
 // 9543168 nodes/sec
 func BenchmarkPerft_KiwiPete_Depth3(b *testing.B) {
-	game := NewGame()
-	game.LoadFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+	game, _ := NewGameFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		perft(game, 3)

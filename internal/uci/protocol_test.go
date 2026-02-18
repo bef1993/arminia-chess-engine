@@ -347,3 +347,16 @@ func TestCalculateTimeLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestSetOption_Threads(t *testing.T) {
+	input := strings.NewReader("setoption name Threads value 4\nquit\n")
+	output := &bytes.Buffer{}
+
+	protocol := NewProtocol(input, output)
+	assert.Equal(t, 8, protocol.threads, "Default threads should be 8")
+
+	err := protocol.Run()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 4, protocol.threads, "Protocol should update threads count from UCI option")
+}

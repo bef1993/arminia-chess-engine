@@ -8,13 +8,11 @@ import (
 )
 
 func TestOrderMoves(t *testing.T) {
-	game := engine.NewEmptyGame()
-
-	game.LoadFEN("k2q4/4P3/8/1pP5/3Q1b2/3p4/8/K7 w - b6 0 1")
+	game, _ := engine.NewGameFromFEN("k2q4/4P3/8/1pP5/3Q1b2/3p4/8/K7 w - b6 0 1")
 	noisyMoves := game.GetNoisyMoves()
 	ttMove, _ := engine.ParseMove("d4d3", game)
 
-	orderMoves(game, noisyMoves, ttMove)
+	orderMoves(game, noisyMoves, ttMove, 0)
 
 	// Make sure that TT move is #1
 	// Pawn capture Queen and promote to Queen is #2

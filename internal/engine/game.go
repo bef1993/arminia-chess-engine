@@ -16,69 +16,48 @@ const (
 	StatusDrawInsufficientMaterial
 )
 
-// GameState captures the state of the game before a move is made, for undo purposes
-type GameState struct {
-	CastlingRights  CastlingRights
-	EnPassantTarget int // Square index, -1 if none
-	HalfMoveClock   int
-	CapturedPiece   Piece
-	PositionHistory []uint64
-	ZobristHash     uint64
-}
-
 // Game represents a chess game
 type Game struct {
-	Board          *Board
-	CurrentTurn    Color
-	MoveHistory    []Move      // Track actual Move objects
-	LastMove       *Move       // For en passant target tracking
-	FullMoveNumber int         // Increments after black's move
-	StateHistory   []GameState // Stack of states for undoing moves
-
-	// GameState is embedded to hold the current state fields like castling rights,
-	// en passant target, half-move clock, and position history.
-	GameState
+	Board           Board
+	CurrentTurn     Color
+	MoveHistory     []Move // Track actual Move objects
+	FullMoveCounter int    // Tracks the number of the current full turn, starting with 1
+	CastlingRights  CastlingRights
+	EnPassantTarget int // Square index, -1 if none
+	HalfMoveClock   int // Tracks the number of half turns no capture or pawn push was made, starting with 0
+	ZobristHash     uint64
+	PreviousState   *Game
 }
 
 // NewGame creates a new chess game
 func NewGame() *Game {
 	g := &Game{
-		Board:          NewBoard(),
-		CurrentTurn:    White,
-		MoveHistory:    []Move{},
-		LastMove:       nil,
-		FullMoveNumber: 1,
-		StateHistory:   []GameState{},
-		GameState: GameState{
-			EnPassantTarget: -1,
-			CastlingRights:  AllCastling,
-			HalfMoveClock:   0,
-			PositionHistory: []uint64{},
-		},
+		Board:           NewBoard(),
+		CurrentTurn:     White,
+		MoveHistory:     []Move{},
+		FullMoveCounter: 1,
+		CastlingRights:  AllCastling,
+		EnPassantTarget: -1,
+		HalfMoveClock:   0,
+		PreviousState:   nil,
 	}
 	g.ZobristHash = g.ComputeZobristHash()
-	g.PositionHistory = append(g.PositionHistory, g.ZobristHash)
 	return g
 }
 
 // NewEmptyGame creates a new chess game with an empty board
 func NewEmptyGame() *Game {
 	g := &Game{
-		Board:          NewEmptyBoard(),
-		CurrentTurn:    White,
-		MoveHistory:    []Move{},
-		LastMove:       nil,
-		FullMoveNumber: 1,
-		StateHistory:   []GameState{},
-		GameState: GameState{
-			EnPassantTarget: -1,
-			CastlingRights:  NoCastling,
-			HalfMoveClock:   0,
-			PositionHistory: []uint64{},
-		},
+		Board:           NewEmptyBoard(),
+		CurrentTurn:     White,
+		MoveHistory:     []Move{},
+		FullMoveCounter: 1,
+		CastlingRights:  NoCastling,
+		EnPassantTarget: -1,
+		HalfMoveClock:   0,
+		PreviousState:   nil,
 	}
 	g.ZobristHash = g.ComputeZobristHash()
-	g.PositionHistory = append(g.PositionHistory, g.ZobristHash)
 	return g
 }
 
@@ -94,19 +73,22 @@ func (g *Game) SwitchTurn() {
 // ExecuteMove executes a move on the board and updates game state
 // Returns true if move was successful, false otherwise
 func (g *Game) ExecuteMove(move Move) bool {
+
+	// Copy current state and set it as PreviousGameState
+	oldGame := g.Clone()
+	g.PreviousState = oldGame
+
 	piece := g.Board.GetPiece(move.From)
 	if piece == NoPiece || piece.Color() != g.CurrentTurn {
 		return false
 	}
 
-	// Start updating hash incrementally
 	hash := g.ZobristHash
 
 	// XOR out old state (Castling, EP, Turn)
-	// We use the current state values before they are modified
 	hash ^= zobristCastling[g.CastlingRights]
 	if g.EnPassantTarget != -1 {
-		hash ^= zobristEnPassant[GetFile(g.EnPassantTarget)] // Use column for hash
+		hash ^= zobristEnPassant[GetFile(g.EnPassantTarget)]
 	} else {
 		hash ^= zobristEnPassant[8]
 	}
@@ -116,7 +98,6 @@ func (g *Game) ExecuteMove(move Move) bool {
 	hash ^= zobristPiece[piece.Color()][piece.Type()][move.From]
 
 	// XOR in moving piece at dest (we'll handle promotion replacement later)
-	// Note: If it's a capture, we'll XOR out the captured piece below
 	hash ^= zobristPiece[piece.Color()][piece.Type()][move.To]
 
 	// Determine move type from board state
@@ -124,7 +105,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	isCapture := targetPiece != NoPiece
 	isPawnMove := piece.Type() == Pawn
 
-	// Detect en passant capture (pawn moving diagonally to empty square at en passant target)
+	// Detect en passant capture
 	isEnPassant := isPawnMove &&
 		move.To == g.EnPassantTarget &&
 		targetPiece == NoPiece
@@ -134,35 +115,26 @@ func (g *Game) ExecuteMove(move Move) bool {
 		hash ^= zobristPiece[targetPiece.Color()][targetPiece.Type()][move.To]
 	}
 
-	// Detect castling (King moving 2 squares horizontally)
+	// Detect castling
 	isCastling := piece.Type() == King && (move.To == move.From+2 || move.To == move.From-2)
-
-	// Capture state before changes
-	state := g.GameState // This is a copy.
-	state.CapturedPiece = targetPiece
 
 	// Handle en passant capture (remove attacked pawn)
 	if isEnPassant {
-		// Captured pawn is at [ToCol, FromRow]
 		captureSq := GetSq(GetFile(move.To), GetRank(move.From))
-		state.CapturedPiece = g.Board.GetPiece(captureSq)
-
 		isCapture = true
 		g.Board.SetPiece(captureSq, NoPiece)
 
 		// Update Hash: Remove captured EP pawn
-		epPawn := state.CapturedPiece
-		hash ^= zobristPiece[epPawn.Color()][epPawn.Type()][captureSq]
+		hash ^= zobristPiece[g.CurrentTurn][Pawn][captureSq]
 	}
 
-	// Execute the move
+	// Execute the move on the board
 	g.Board.MovePiece(move.From, move.To)
 
 	// Handle castling rook movement
 	if isCastling {
 		rank := GetRank(move.From)
 		if move.To > move.From { // Kingside
-			// Move rook from H-file (7) to F-file (5)
 			g.Board.MovePiece(GetSq(FileH, rank), GetSq(FileF, rank))
 
 			// Update Hash: Move Rook
@@ -172,7 +144,6 @@ func (g *Game) ExecuteMove(move Move) bool {
 			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
 			hash ^= zobristPiece[rook.Color()][rook.Type()][newRookSq]
 		} else { // Queenside
-			// Move rook from A-file (0) to D-file (3)
 			g.Board.MovePiece(GetSq(FileA, rank), GetSq(FileD, rank))
 
 			// Update Hash: Move Rook
@@ -189,24 +160,22 @@ func (g *Game) ExecuteMove(move Move) bool {
 		g.Board.SetPiece(move.To, move.PromotionPiece)
 
 		// Update Hash: Replace Pawn with Promoted Piece
-		// We already added the Pawn at dstSq above. Remove it.
-		hash ^= zobristPiece[piece.Color()][piece.Type()][move.To]
-		// Add promoted piece
+		hash ^= zobristPiece[piece.Color()][piece.Type()][move.To] // Remove Pawn
 		promPiece := move.PromotionPiece
-		hash ^= zobristPiece[promPiece.Color()][promPiece.Type()][move.To]
+		hash ^= zobristPiece[promPiece.Color()][promPiece.Type()][move.To] // Add Promoted Piece
 	}
 
-	// Update castling rights if king or rook moved
+	// Update castling rights
 	g.updateCastlingRights(move, piece, targetPiece)
 
-	// Update half-move clock (reset on captures or pawn moves, increment otherwise)
+	// Update half-move clock
 	if isCapture || isPawnMove {
 		g.HalfMoveClock = 0
 	} else {
 		g.HalfMoveClock++
 	}
 
-	// Detect double pawn move (creates en passant target)
+	// Detect double pawn move
 	rankDiff := GetRank(move.To) - GetRank(move.From)
 	if rankDiff < 0 {
 		rankDiff = -rankDiff
@@ -222,11 +191,10 @@ func (g *Game) ExecuteMove(move Move) bool {
 
 	// Add to move history
 	g.MoveHistory = append(g.MoveHistory, move)
-	g.LastMove = &move
 
-	// Increment full move number after black moves
+	// Increment full move number
 	if g.CurrentTurn == Black {
-		g.FullMoveNumber++
+		g.FullMoveCounter++
 	}
 
 	// Switch turns
@@ -241,20 +209,6 @@ func (g *Game) ExecuteMove(move Move) bool {
 	}
 
 	g.ZobristHash = hash
-
-	// Update position history for repetition check
-	// If the move is irreversible (capture or pawn move), we clear the history
-	// because previous positions can never be reached again.
-	// This is an optimization and also correct according to FIDE rules for 3-fold repetition.
-	if isCapture || isPawnMove {
-		g.PositionHistory = []uint64{g.ZobristHash}
-	} else {
-		g.PositionHistory = append(g.PositionHistory, g.ZobristHash)
-	}
-
-	// Push state to history
-	g.StateHistory = append(g.StateHistory, state)
-
 	return true
 }
 
@@ -266,14 +220,12 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	toRank := GetRank(move.To)
 
 	if piece.Type() == King {
-		// King moved - revoke all castling rights for this color
 		if piece.Color() == White {
 			g.CastlingRights &= ^(WhiteKingside | WhiteQueenside)
 		} else {
 			g.CastlingRights &= ^(BlackKingside | BlackQueenside)
 		}
 	} else if piece.Type() == Rook {
-		// Rook moved - revoke castling on that side
 		if piece.Color() == White {
 			if fromFile == FileA && fromRank == Rank1 {
 				g.CastlingRights &= ^WhiteQueenside
@@ -289,7 +241,6 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 		}
 	}
 
-	// If a rook is captured, revoke castling rights
 	if targetPiece != NoPiece && targetPiece.Type() == Rook {
 		if targetPiece.Color() == White {
 			if toFile == FileA && toRank == Rank1 {
@@ -307,72 +258,12 @@ func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	}
 }
 
-// UnmakeMove undoes the last move
+// UnmakeMove undoes the last move by overwriting the current state with the previous game state
 func (g *Game) UnmakeMove() {
-	if len(g.StateHistory) == 0 || len(g.MoveHistory) == 0 {
+	if g.PreviousState == nil {
 		return
 	}
-
-	// Pop state and move
-	state := g.StateHistory[len(g.StateHistory)-1]
-	g.StateHistory = g.StateHistory[:len(g.StateHistory)-1]
-
-	move := g.MoveHistory[len(g.MoveHistory)-1]
-	g.MoveHistory = g.MoveHistory[:len(g.MoveHistory)-1]
-
-	// Restore game state fields
-	g.GameState = state
-
-	// Switch turn back
-	g.SwitchTurn()
-	if g.CurrentTurn == Black {
-		g.FullMoveNumber--
-	}
-
-	// Restore LastMove
-	if len(g.MoveHistory) > 0 {
-		g.LastMove = new(g.MoveHistory[len(g.MoveHistory)-1])
-	} else {
-		g.LastMove = nil
-	}
-
-	// Restore pieces on board
-	// 1. Move the piece back from To -> From
-	movedPiece := g.Board.GetPiece(move.To)
-	g.Board.MovePiece(move.To, move.From)
-
-	// 2. If it was a promotion, revert the piece at From to a Pawn
-	if move.PromotionPiece != NoPiece {
-		pawn := Pawn.FromColor(move.PromotionPiece.Color())
-		g.Board.SetPiece(move.From, pawn)
-		movedPiece = pawn // Update for En Passant check below
-	}
-
-	// 3. Restore captured piece
-	if state.CapturedPiece != NoPiece {
-		// Check if it was En Passant
-		if movedPiece.Type() == Pawn && move.To == g.EnPassantTarget {
-			// En Passant capture: restore pawn at (ToCol, FromRow)
-			captureSq := GetSq(GetFile(move.To), GetRank(move.From))
-			g.Board.SetPiece(captureSq, state.CapturedPiece)
-		} else {
-			// Normal capture: restore piece at To
-			g.Board.SetPiece(move.To, state.CapturedPiece)
-		}
-	}
-
-	// Castling undo
-	// If King moved 2 squares, move the Rook back
-	if movedPiece.Type() == King && (move.To == move.From+2 || move.To == move.From-2) {
-		rank := GetRank(move.From)
-		if move.To > move.From { // Kingside castling (e1->g1 or e8->g8)
-			// Rook moved from H to F. Move back F -> H.
-			g.Board.MovePiece(GetSq(FileF, rank), GetSq(FileH, rank))
-		} else { // Queenside castling (e1->c1 or e8->c8)
-			// Rook moved from A to D. Move back D -> A.
-			g.Board.MovePiece(GetSq(FileD, rank), GetSq(FileA, rank))
-		}
-	}
+	*g = *g.PreviousState
 }
 
 // GetGameStatus returns the current status of the game
@@ -412,12 +303,15 @@ func (g *Game) IsDrawByFiftyMoveRule() bool {
 // CanClaimDrawByThreefoldRepetition checks if current position has occurred 3 times
 func (g *Game) CanClaimDrawByThreefoldRepetition() bool {
 	currentHash := g.ZobristHash
-	count := 0
-	for _, hash := range g.PositionHistory {
-		if hash == currentHash {
+	count := 1
+
+	// Iterate through all PreviousGameStates and increment counter when the hash matches
+	for prev := g.PreviousState; prev != nil; prev = prev.PreviousState {
+		if prev.ZobristHash == currentHash {
 			count++
 		}
 	}
+
 	return count >= 3
 }
 
@@ -603,4 +497,14 @@ func (g *Game) ValidateMove(move Move) error {
 	}
 
 	return fmt.Errorf("illegal move")
+}
+
+// Clone creates a deep copy of the game state for parallel search
+func (g *Game) Clone() *Game {
+	newGame := *g
+	// Deep copy MoveHistory
+	newGame.MoveHistory = make([]Move, len(g.MoveHistory))
+	copy(newGame.MoveHistory, g.MoveHistory)
+
+	return &newGame
 }

@@ -2,6 +2,7 @@ package search
 
 import (
 	"arminia-chess-engine/internal/engine"
+	"sync/atomic"
 )
 
 // TTFlag represents the type of score stored in the transposition table
@@ -16,7 +17,7 @@ const (
 // DefaultTTSizeMB is the default size of the transposition table in megabytes.
 const DefaultTTSizeMB = 512
 
-// TTEntry represents a single entry in the transposition table
+// TTEntry represents the unpacked data
 type TTEntry struct {
 	Hash     uint64
 	Score    int
@@ -25,9 +26,15 @@ type TTEntry struct {
 	BestMove engine.Move
 }
 
+// packedEntry represents the compact storage
+type packedEntry struct {
+	key  uint64 // hash ^ data
+	data uint64 // packed data
+}
+
 // TranspositionTable represents the hash table
 type TranspositionTable struct {
-	entries []TTEntry
+	entries []packedEntry
 	size    uint64
 }
 
@@ -41,10 +48,8 @@ func init() {
 
 // NewTranspositionTable creates a new TT with the given size in MB
 func NewTranspositionTable(sizeMB int) *TranspositionTable {
-	// Estimate entry size.
-	// Hash(8) + Score(8) + Depth(8) + Flag(1) + Move(~40) + Padding ~ 72 bytes
-	// We'll be conservative and assume ~80 bytes per entry
-	entrySize := 80
+	// Entry size is 16 bytes (2 uint64s)
+	entrySize := 16
 	count := (sizeMB * 1024 * 1024) / entrySize
 
 	if count <= 0 {
@@ -52,7 +57,7 @@ func NewTranspositionTable(sizeMB int) *TranspositionTable {
 	}
 
 	return &TranspositionTable{
-		entries: make([]TTEntry, count),
+		entries: make([]packedEntry, count),
 		size:    uint64(count),
 	}
 }
@@ -63,10 +68,14 @@ func (tt *TranspositionTable) Probe(hash uint64) (TTEntry, bool) {
 		return TTEntry{}, false
 	}
 	index := hash % tt.size
-	entry := tt.entries[index]
+	entry := &tt.entries[index]
 
-	if entry.Hash == hash {
-		return entry, true
+	// Lockless read
+	data := atomic.LoadUint64(&entry.data)
+	key := atomic.LoadUint64(&entry.key)
+
+	if (key ^ data) == hash {
+		return unpack(hash, data), true
 	}
 	return TTEntry{}, false
 }
@@ -77,28 +86,46 @@ func (tt *TranspositionTable) Store(hash uint64, depth, score int, flag TTFlag, 
 		return
 	}
 	index := hash % tt.size
-
 	entry := &tt.entries[index]
 
-	// If we have an entry for the same position, be careful about overwriting.
-	if entry.Hash == hash {
-		// 1. Don't overwrite deep results with shallow ones (e.g. QS overwriting Main Search)
-		if depth < entry.Depth {
-			return
-		}
-		// 2. Preserve existing best move if the new one is empty (e.g. fail-low)
-		if bestMove == (engine.Move{}) {
-			bestMove = entry.BestMove
+	// Lockless replacement strategy
+	oldData := atomic.LoadUint64(&entry.data)
+	oldKey := atomic.LoadUint64(&entry.key)
+
+	replace := false
+	if (oldKey ^ oldData) != hash {
+		// Collision or empty: Always replace
+		replace = true
+	} else {
+		// Same position: Replace if new depth is sufficient or better quality
+		oldDepth := int(uint8((oldData >> 16) & 0xFF))
+		oldFlag := TTFlag((oldData >> 24) & 0x3)
+
+		if depth > oldDepth {
+			replace = true
+		} else if depth == oldDepth {
+			// If depths are equal, replace unless we are downgrading from Exact to Bound.
+			// 1. If new is Exact, always replace (Upgrade or Refresh).
+			// 2. If old is NOT Exact, always replace (Upgrade or Refresh).
+			if flag == FlagExact || oldFlag != FlagExact {
+				replace = true
+			}
 		}
 	}
 
-	// Replacement strategy: Always replace (if not same hash & deeper)
-	*entry = TTEntry{
-		Hash:     hash,
-		Score:    score,
-		Depth:    depth,
-		Flag:     flag,
-		BestMove: bestMove,
+	if replace {
+		newData := pack(depth, score, flag, bestMove)
+
+		// Optimization: Preserve the existing move if the new search didn't find one (e.g. fail-low).
+		// This ensures we don't lose the Hash Move for the next search.
+		if bestMove == (engine.Move{}) && (oldKey^oldData) == hash {
+			newData |= oldData & (0xFFFFF << 26) // Copy move bits (20 bits starting at 26)
+		}
+
+		newKey := hash ^ newData
+
+		atomic.StoreUint64(&entry.data, newData)
+		atomic.StoreUint64(&entry.key, newKey)
 	}
 }
 
@@ -109,5 +136,59 @@ func (tt *TranspositionTable) Resize(sizeMB int) {
 
 // Clear clears the transposition table
 func (tt *TranspositionTable) Clear() {
-	tt.entries = make([]TTEntry, len(tt.entries))
+	tt.entries = make([]packedEntry, len(tt.entries))
+}
+
+func pack(depth, score int, flag TTFlag, move engine.Move) uint64 {
+	// Clamp score to int16 range
+	if score > 32000 {
+		score = 32000
+	} else if score < -32000 {
+		score = -32000
+	}
+
+	// Clamp depth to uint8
+	if depth > 255 {
+		depth = 255
+	}
+
+	d := uint64(uint16(score))      // Bits 0-15
+	d |= uint64(uint8(depth)) << 16 // Bits 16-23
+	d |= uint64(flag) << 24         // Bits 24-25
+
+	// Move packing: From(6) + To(6) + Promo(8)
+	mv := uint64(move.From) & 0x3F
+	mv |= (uint64(move.To) & 0x3F) << 6
+	mv |= (uint64(move.PromotionPiece) & 0xFF) << 12
+
+	d |= mv << 26 // Bits 26-45
+
+	return d
+}
+
+func unpack(hash, data uint64) TTEntry {
+	score := int(int16(data & 0xFFFF))
+	depth := int(uint8((data >> 16) & 0xFF))
+	flag := TTFlag((data >> 24) & 0x3)
+
+	mvData := data >> 26
+	from := int(mvData & 0x3F)
+	to := int((mvData >> 6) & 0x3F)
+	promoRaw := (mvData >> 12) & 0xFF
+	var promo engine.Piece
+	if promoRaw == 0xFF { // TODO this is necessary because NoPiece currently is -1, which becomes 0xFF when cast to uint64. We should consider changing NoPiece to 0 for cleaner packing.
+		promo = engine.NoPiece
+	} else {
+		promo = engine.Piece(promoRaw)
+	}
+
+	move := engine.Move{From: from, To: to, PromotionPiece: promo}
+
+	return TTEntry{
+		Hash:     hash,
+		Score:    score,
+		Depth:    depth,
+		Flag:     flag,
+		BestMove: move,
+	}
 }

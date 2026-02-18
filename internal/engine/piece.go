@@ -51,7 +51,7 @@ func (p PieceType) FromColor(color Color) Piece {
 type Piece int8
 
 const (
-	NoPiece   Piece = iota -1
+	NoPiece Piece = iota - 1
 	WhitePawn
 	WhiteKnight
 	WhiteBishop
@@ -67,7 +67,7 @@ const (
 )
 
 // CastlingRights represents which castling moves are available (bitmask)
-type CastlingRights int
+type CastlingRights uint8
 
 const (
 	NoCastling     CastlingRights = 0
@@ -75,7 +75,7 @@ const (
 	WhiteQueenside CastlingRights = 1 << 1 // 0010
 	BlackKingside  CastlingRights = 1 << 2 // 0100
 	BlackQueenside CastlingRights = 1 << 3 // 1000
-	AllCastling    CastlingRights = WhiteKingside | WhiteQueenside | BlackKingside | BlackQueenside
+	AllCastling                   = WhiteKingside | WhiteQueenside | BlackKingside | BlackQueenside
 )
 
 // Type returns the type of the piece
@@ -93,8 +93,9 @@ func (p Piece) Type() PieceType {
 		return Queen
 	case WhiteKing, BlackKing:
 		return King
+	default:
+		return NoType
 	}
-	return NoType
 }
 
 // Color returns the color of the piece
@@ -132,8 +133,9 @@ func (p Piece) GetSymbol() string {
 		return "♛"
 	case BlackKing:
 		return "♚"
+	default:
+		return " "
 	}
-	return " "
 }
 
 func (p Piece) GetChar() string {

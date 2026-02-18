@@ -8,18 +8,18 @@ import (
 	"unicode"
 )
 
-// LoadFEN loads a game state from a FEN string
-func (g *Game) LoadFEN(fen string) error { // TODO compute zobrist hash
+func NewGameFromFEN(fen string) (*Game, error) {
 	parts := strings.Fields(fen)
 	if len(parts) < 4 {
-		return errors.New("invalid FEN: too few fields")
+		return nil, errors.New("invalid FEN: too few fields")
 	}
 
+	g := NewEmptyGame()
+
 	// 1. Piece placement
-	g.Board.Clear()
 	ranks := strings.Split(parts[0], "/")
 	if len(ranks) != 8 {
-		return errors.New("invalid FEN: wrong number of ranks")
+		return nil, errors.New("invalid FEN: wrong number of ranks")
 	}
 
 	for r, rankStr := range ranks {
@@ -32,14 +32,14 @@ func (g *Game) LoadFEN(fen string) error { // TODO compute zobrist hash
 			} else {
 				piece := NewPieceFromChar(char)
 				if piece == NoPiece {
-					return fmt.Errorf("invalid piece char: %c", char)
+					return nil, fmt.Errorf("invalid piece char: %c", char)
 				}
 				g.Board.SetPiece(GetSq(file, rank), piece)
 				file++
 			}
 		}
 		if file != 8 {
-			return fmt.Errorf("invalid FEN: rank %d has wrong width", 8-r)
+			return nil, fmt.Errorf("invalid FEN: rank %d has wrong width", 8-r)
 		}
 	}
 
@@ -50,7 +50,7 @@ func (g *Game) LoadFEN(fen string) error { // TODO compute zobrist hash
 	case "b":
 		g.CurrentTurn = Black
 	default:
-		return errors.New("invalid active color")
+		return nil, errors.New("invalid active color")
 	}
 
 	// 3. Castling availability
@@ -90,24 +90,19 @@ func (g *Game) LoadFEN(fen string) error { // TODO compute zobrist hash
 	}
 
 	// 6. Fullmove number (optional)
-	g.FullMoveNumber = 1
+	g.FullMoveCounter = 1
 	if len(parts) > 5 {
 		if val, err := strconv.Atoi(parts[5]); err == nil {
-			g.FullMoveNumber = val
+			g.FullMoveCounter = val
 		}
 	}
 
 	// Reset history as we are starting from a position
 	g.MoveHistory = []Move{}
-	g.LastMove = nil
+	g.PreviousState = nil
 
-	// Reset position history
-	// Compute initial hash
 	g.ZobristHash = g.ComputeZobristHash()
-
-	g.PositionHistory = []uint64{g.ZobristHash}
-
-	return nil
+	return g, nil
 }
 
 // GenerateFEN returns the FEN string representing the current game state.
@@ -185,7 +180,7 @@ func (g *Game) GenerateFEN() string {
 	sb.WriteString(" ")
 
 	// 6. Fullmove number
-	sb.WriteString(strconv.Itoa(g.FullMoveNumber))
+	sb.WriteString(strconv.Itoa(g.FullMoveCounter))
 
 	return sb.String()
 }
