@@ -7,7 +7,15 @@ import (
 )
 
 // negamax implements the Negamax algorithm with alpha-beta pruning.
-// ply is the distance from the root of the search tree.
+// ctx holds the search timeout and cancellation signal.
+// game is the current game state.
+// depth is the remaining search depth.
+// alpha and beta are the current bounds for pruning.
+// ply is the current depth in the tree (used for TT score adjustments to prefer faster checkmates).
+// ply is the current depth in the tree
+// nodes counts the number of nodes visited (for stats).
+// selDepth tracks the maximum depth reached (including quiescence extensions) for stats.
+// threadID is the ID of the current search thread (for move ordering heuristics).
 // Returns: score, bestMove, interrupted
 func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *atomic.Int64, selDepth *int, threadID int) (int, engine.Move, bool) {
 	if ply > *selDepth {
@@ -23,8 +31,10 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	nodes.Add(1)
 
 	// --- Draw Detection ---
-	if game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial() {
-		GlobalTT.Store(game.ZobristHash, depth, 0, FlagExact, engine.Move{})
+	// We do not want to store repetion draws in the TT because the draw depends on how the position was reached
+	// Since we check this before probing the TT, we can avoid storing these positions in the TT and just return a score of 0 immediately.
+	// If we are at the root node, we want to search the position anyway to report stats, so we only return 0 for draw positions at ply > 0.
+	if ply > 0 && (game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial()) {
 		return 0, engine.Move{}, false
 	}
 
