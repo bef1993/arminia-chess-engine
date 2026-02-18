@@ -136,9 +136,10 @@ func TestNegamax_DetectsDrawByRepetition(t *testing.T) {
 		game.ExecuteMove(move)
 	}
 
-	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Game state should recognize the 3-fold repetition")
+	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Game state should recognize the 3-fold repetition after the move sequence")
 
-	score, _, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 1, new(atomic.Int64), new(int), 0)
+	// Call negamax at the root (ply=0). It should immediately recognize the draw.
+	score, _, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int), 0)
 
-	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition, despite material advantage")
+	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition at the root, despite material advantage")
 }

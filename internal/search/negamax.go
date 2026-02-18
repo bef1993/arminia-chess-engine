@@ -23,10 +23,7 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	nodes.Add(1)
 
 	// --- Draw Detection ---
-	// We check for draws before probing the TT. A draw is a draw regardless of whose turn it is.
-	// We check at ply > 0 because we want to search for a win from the root even if it's a 2-fold repetition.
-	if ply > 0 && (game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial()) {
-		// Store draw score in TT
+	if game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial() {
 		GlobalTT.Store(game.ZobristHash, depth, 0, FlagExact, engine.Move{})
 		return 0, engine.Move{}, false
 	}
