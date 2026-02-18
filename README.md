@@ -83,7 +83,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 | **3** | ✅ Complete    | FEN support, Search algorithm, evaluation function    |
 | **4** | ✅ Complete    | Advanced features (quiescence, time management, etc.) |
 | **5** | ✅ Complete    | Lichess integration (via lichess-bot)                 |
-| **6** | ⏳ In Progress | Expert features (Killer moves, Bitboards, SMP)        |
+| **6** | ⏳ In Progress | Expert features (Killer moves, Bitboards, Lazy SMP)   |
 
 ## Implemented Optimizations
 
@@ -94,6 +94,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
 - **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
+- **Lazy SMP**: Parallel search using helper threads to populate the lockless transposition table.
 - **Evaluation**: Piece-Square Tables (PST) to encourage positional play (center control, king safety).
 
 ## Next Steps
@@ -101,7 +102,6 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 **Future Improvements (Phase 6):**
 
 - [ ] Move ordering for quiet moves
-- [ ] Advanced Parallel Search (Lazy SMP)
 - [ ] Tapered Evaluation (Variable King PST based on game phase)
 - [ ] Opening Books
 - [ ] Endgame Tablebases

@@ -87,12 +87,11 @@ Move generation is **pseudo-legal** followed by **legality filtering**.
 
 The engine is functional and strong (estimated ~1800+ Elo). The next phase focuses on advanced optimizations:
 
-1.  **Lazy SMP**: Implement parallel search using the "Lazy SMP" algorithm (shared TT, multiple threads searching root).
-2.  **Tapered Evaluation**: Interpolate between Middlegame and Endgame PSTs based on game phase.
-3.  **Killer Moves**: Store quiet moves that caused cutoffs at specific ply depths to prioritize them.
-4.  **History Heuristic**: Score quiet moves based on their historical success to improve ordering.
-5.  **Check Extensions**: Extend search depth when the king is in check to find mates.
-6.  **Endgame Tablebases**: Integrate Syzygy tablebases for perfect endgame play.
+1.  **Tapered Evaluation**: Interpolate between Middlegame and Endgame PSTs based on game phase.
+2.  **Killer Moves**: Store quiet moves that caused cutoffs at specific ply depths to prioritize them.
+3.  **History Heuristic**: Score quiet moves based on their historical success to improve ordering.
+4.  **Check Extensions**: Extend search depth when the king is in check to find mates.
+5.  **Endgame Tablebases**: Integrate Syzygy tablebases for perfect endgame play.
 
 ## Testing
 
