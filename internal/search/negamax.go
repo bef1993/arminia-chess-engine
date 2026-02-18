@@ -38,6 +38,13 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 		return 0, engine.Move{}, false
 	}
 
+	// Check Extensions
+	// If the side to move is in check, we extend the search depth by 1 to find a defense or mate.
+	inCheck := game.Board.IsKingInCheck(game.CurrentTurn)
+	if inCheck {
+		depth++
+	}
+
 	alphaOrig := alpha
 	var ttMove engine.Move
 
@@ -75,7 +82,7 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 
 	if len(moves) == 0 {
 		score := 0
-		if game.Board.IsKingInCheck(game.CurrentTurn) {
+		if inCheck {
 			// Checkmate: return a very low score, adjusted by ply to prefer faster mates
 			score = -EvalMate + ply
 		}
