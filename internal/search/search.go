@@ -94,7 +94,9 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 			break
 		}
 
-		bestMove = move
+		if move != (engine.Move{}) {
+			bestMove = move
+		}
 		score = eval
 
 		if infoCh != nil {
