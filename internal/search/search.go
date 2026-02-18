@@ -57,7 +57,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 	bestMove = InitializeBestMoveFallback(game)
 
 	// Configure threads
-	numThreads := 1 //TODO use options.Threads
+	numThreads := options.Threads
 	if numThreads < 1 {
 		numThreads = 1
 	}
@@ -73,8 +73,13 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 			// Each thread needs its own game instance to avoid race conditions on board state
 			gameClone := game.Clone()
 			var helperSelDepth int
-			// Helpers search to the max depth; the context handles termination.
-			negamax(ctx, gameClone, options.MaxDepth, -EvalInfinity, EvalInfinity, 0, &totalNodes, &helperSelDepth)
+			// Helpers run Iterative Deepening to populate TT.
+			for d := 1; d <= options.MaxDepth; d++ {
+				_, _, interrupted := negamax(ctx, gameClone, d, -EvalInfinity, EvalInfinity, 0, &totalNodes, &helperSelDepth, i)
+				if interrupted || ctx.Err() != nil {
+					break
+				}
+			}
 		}()
 	}
 
@@ -83,7 +88,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 		var selDepth int
 		// The main thread performs the iterative deepening search.
 		// It shares the totalNodes counter and the TT with the helper threads.
-		eval, move, interrupted := negamax(ctx, game, depth, -EvalInfinity, EvalInfinity, 0, &totalNodes, &selDepth)
+		eval, move, interrupted := negamax(ctx, game, depth, -EvalInfinity, EvalInfinity, 0, &totalNodes, &selDepth, 0)
 
 		if interrupted {
 			break

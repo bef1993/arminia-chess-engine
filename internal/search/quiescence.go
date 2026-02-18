@@ -9,7 +9,7 @@ import (
 // quiescence search extends the search at leaf nodes to avoid the horizon effect.
 // It only considers "noisy" moves (captures and promotions).
 // Returns: score, interrupted
-func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, nodes *atomic.Int64, selDepth *int) (int, bool) {
+func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, nodes *atomic.Int64, selDepth *int, threadID int) (int, bool) {
 	if ply > *selDepth {
 		*selDepth = ply
 	}
@@ -65,12 +65,12 @@ func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, no
 	}
 
 	moves := game.GetNoisyMoves()
-	orderMoves(game, moves, ttMove)
+	orderMoves(game, moves, ttMove, threadID)
 	var bestMove engine.Move
 
 	for _, move := range moves {
 		game.ExecuteMove(move)
-		score, interrupted := quiescence(ctx, game, -beta, -alpha, ply+1, nodes, selDepth)
+		score, interrupted := quiescence(ctx, game, -beta, -alpha, ply+1, nodes, selDepth, threadID)
 		if interrupted {
 			game.UnmakeMove()
 			return 0, true

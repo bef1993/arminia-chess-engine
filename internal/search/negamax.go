@@ -9,7 +9,7 @@ import (
 // negamax implements the Negamax algorithm with alpha-beta pruning.
 // ply is the distance from the root of the search tree.
 // Returns: score, bestMove, interrupted
-func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *atomic.Int64, selDepth *int) (int, engine.Move, bool) {
+func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *atomic.Int64, selDepth *int, threadID int) (int, engine.Move, bool) {
 	if ply > *selDepth {
 		*selDepth = ply
 	}
@@ -60,7 +60,7 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	}
 
 	if depth == 0 {
-		score, interrupted := quiescence(ctx, game, alpha, beta, ply, nodes, selDepth)
+		score, interrupted := quiescence(ctx, game, alpha, beta, ply, nodes, selDepth, threadID)
 		return score, engine.Move{}, interrupted
 	}
 
@@ -83,14 +83,14 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 
 	// Move Ordering: Try the move from TT first (Hash Move)
 	// TODO: Improve move ordering for quiet moves (e.g., Killer Moves, History Heuristic)
-	orderMoves(game, moves, ttMove)
+	orderMoves(game, moves, ttMove, threadID)
 
 	bestScore := -EvalInfinity
 	var bestMove engine.Move
 
 	for _, move := range moves {
 		game.ExecuteMove(move)
-		score, _, interrupted := negamax(ctx, game, depth-1, -beta, -alpha, ply+1, nodes, selDepth)
+		score, _, interrupted := negamax(ctx, game, depth-1, -beta, -alpha, ply+1, nodes, selDepth, threadID)
 		if interrupted {
 			game.UnmakeMove()
 			return 0, engine.Move{}, true
