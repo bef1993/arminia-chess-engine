@@ -48,22 +48,22 @@ func orderMoves(sc *SearchContext, moves []engine.Move, ttMove engine.Move) {
 		if victim != engine.NoPiece {
 			// MVV-LVA score: 10 * victim - attacker
 			// Offset by 1000000 to prioritize over quiet moves
-			attackerValue := attacker.Value()
+			attackerValue := pieceValue(attacker.Type())
 			// Cap King value for move ordering to ensure MVV (Most Valuable Victim) dominance.
 			if attacker.Type() == engine.King {
-				attackerValue = engine.QueenValue + 100 // Ensure king is the "least valuable" attacker.
+				attackerValue = QueenValue + 100 // Ensure king is the "least valuable" attacker.
 			}
-			score = 1000000 + (victim.Value() * 10) - attackerValue
+			score = 1000000 + (pieceValue(victim.Type()) * 10) - attackerValue
 		} else if attacker.Type() == engine.Pawn && move.To == game.EnPassantTarget && (move.From%8) != (move.To%8) {
 			// En Passant capture (victim is Pawn)
-			score = 1000000 + (engine.PawnValue * 10) - engine.PawnValue
+			score = 1000000 + (PawnValue * 10) - PawnValue
 		}
 
 		// Promotions
 		if move.PromotionPiece != engine.NoPiece {
 			// Prioritize promotions. Queen promotion (900) is valuable.
 			// Add to existing score (captures + promotion is very valuable)
-			score += 1000000 + move.PromotionPiece.Value()*10
+			score += 1000000 + pieceValue(move.PromotionPiece.Type())*10
 		}
 
 		// Lazy SMP Randomness / Divergence
