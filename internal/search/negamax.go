@@ -2,33 +2,27 @@ package search
 
 import (
 	"arminia-chess-engine/internal/engine"
-	"context"
-	"sync/atomic"
 )
 
 // negamax implements the Negamax algorithm with alpha-beta pruning.
-// ctx holds the search timeout and cancellation signal.
-// game is the current game state.
+// sc holds the search context (game state, cancellation, stats, RNG).
 // depth is the remaining search depth.
 // alpha and beta are the current bounds for pruning.
 // ply is the current depth in the tree (used for TT score adjustments to prefer faster checkmates).
-// ply is the current depth in the tree
-// nodes counts the number of nodes visited (for stats).
-// selDepth tracks the maximum depth reached (including quiescence extensions) for stats.
-// threadID is the ID of the current search thread (for move ordering heuristics).
 // Returns: score, bestMove, interrupted
-func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int, ply int, nodes *atomic.Int64, selDepth *int, threadID int) (int, engine.Move, bool) {
-	if ply > *selDepth {
-		*selDepth = ply
+func negamax(sc *SearchContext, depth int, alpha, beta int, ply int) (int, engine.Move, bool) {
+	game := sc.Game
+	if ply > *sc.SelDepth {
+		*sc.SelDepth = ply
 	}
 
 	// Check for timeout every 2048 nodes
-	if (nodes.Load() & 2047) == 0 {
-		if ctx.Err() != nil {
+	if (sc.Nodes.Load() & 2047) == 0 {
+		if sc.Ctx.Err() != nil {
 			return 0, engine.Move{}, true
 		}
 	}
-	nodes.Add(1)
+	sc.Nodes.Add(1)
 
 	// --- Draw Detection ---
 	// We do not want to store repetion draws in the TT because the draw depends on how the position was reached
@@ -74,11 +68,11 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 	}
 
 	if depth == 0 {
-		score, interrupted := quiescence(ctx, game, alpha, beta, ply, nodes, selDepth, threadID)
+		score, interrupted := quiescence(sc, alpha, beta, ply)
 		return score, engine.Move{}, interrupted
 	}
 
-	moves := game.GenerateLegalMoves()
+	moves := sc.Game.GenerateLegalMoves()
 
 	if len(moves) == 0 {
 		score := 0
@@ -97,14 +91,14 @@ func negamax(ctx context.Context, game *engine.Game, depth int, alpha, beta int,
 
 	// Move Ordering: Try the move from TT first (Hash Move)
 	// TODO: Improve move ordering for quiet moves (e.g., Killer Moves, History Heuristic)
-	orderMoves(game, moves, ttMove, threadID)
+	orderMoves(sc, moves, ttMove)
 
 	bestScore := -EvalInfinity
 	var bestMove engine.Move
 
 	for _, move := range moves {
 		game.ExecuteMove(move)
-		score, _, interrupted := negamax(ctx, game, depth-1, -beta, -alpha, ply+1, nodes, selDepth, threadID)
+		score, _, interrupted := negamax(sc, depth-1, -beta, -alpha, ply+1)
 		if interrupted {
 			game.UnmakeMove()
 			return 0, engine.Move{}, true

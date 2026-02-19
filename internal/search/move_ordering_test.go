@@ -2,6 +2,7 @@ package search
 
 import (
 	"arminia-chess-engine/internal/engine"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,13 @@ func TestOrderMoves(t *testing.T) {
 	noisyMoves := game.GetNoisyMoves()
 	ttMove, _ := engine.ParseMove("d4d3", game)
 
-	orderMoves(game, noisyMoves, ttMove, 0)
+	sc := &SearchContext{
+		Ctx:  context.Background(),
+		Game: game,
+		Rand: nil, // Deterministic
+	}
+
+	orderMoves(sc, noisyMoves, ttMove)
 
 	// Make sure that TT move is #1
 	// Pawn capture Queen and promote to Queen is #2

@@ -25,9 +25,13 @@ func TestNegamax_FindsMateInOne(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Search should find the mate
-	// Depth 2 is required because depth 1 only evaluates the position (material),
-	// while depth 2 checks if the opponent has any legal moves left.
-	score, move, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int), 0)
+	sc := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &atomic.Int64{},
+		SelDepth: new(int),
+	}
+	score, move, _ := negamax(sc, 2, -EvalInfinity, EvalInfinity, 0)
 
 	// Expected move: Qd6-e6#
 	assert.Equal(t, "d6e6", move.String(), "Should find mate d6e6")
@@ -41,7 +45,13 @@ func TestNegamax_FindsMateInOneBlack(t *testing.T) {
 	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
 
-	score, move, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int), 0)
+	sc := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &atomic.Int64{},
+		SelDepth: new(int),
+	}
+	score, move, _ := negamax(sc, 2, -EvalInfinity, EvalInfinity, 0)
 
 	// Expected move: Rb1-a1#
 	assert.Equal(t, "b1a1", move.String(), "Should find mate b1a1")
@@ -54,7 +64,13 @@ func TestNegamax_FindsMateInTwo(t *testing.T) {
 	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
 
-	score, move, _ := negamax(context.Background(), game, 4, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int), 0)
+	sc := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &atomic.Int64{},
+		SelDepth: new(int),
+	}
+	score, move, _ := negamax(sc, 4, -EvalInfinity, EvalInfinity, 0)
 
 	// Expected move: Qf4+, followed by Qxc1#
 	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
@@ -67,7 +83,13 @@ func TestNegamax_FindsMateInThreeWithEnPassant(t *testing.T) {
 	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
 
-	score, move, _ := negamax(context.Background(), game, 6, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int), 0)
+	sc := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &atomic.Int64{},
+		SelDepth: new(int),
+	}
+	score, move, _ := negamax(sc, 6, -EvalInfinity, EvalInfinity, 0)
 
 	// Expected move: e6c8
 	assert.Equal(t, "e6c8", move.String(), "Should find mate in 3 with en passant")
@@ -88,13 +110,25 @@ func TestNegamax_TTIntegration_ReducesNodeCount(t *testing.T) {
 
 	// 1. First Search (Cold TT)
 	depth := 4
-	var nodes1 atomic.Int64
-	score1, move1, _ := negamax(context.Background(), game, depth, -EvalInfinity, EvalInfinity, 0, &nodes1, new(int), 0)
+	nodes1 := atomic.Int64{}
+	sc1 := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &nodes1,
+		SelDepth: new(int),
+	}
+	score1, move1, _ := negamax(sc1, depth, -EvalInfinity, EvalInfinity, 0)
 
 	// 2. Second Search (Warm TT)
 	// We expect the search to find the entry in the TT and return immediately or prune heavily
-	var nodes2 atomic.Int64
-	score2, move2, _ := negamax(context.Background(), game, depth, -EvalInfinity, EvalInfinity, 0, &nodes2, new(int), 0)
+	nodes2 := atomic.Int64{}
+	sc2 := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &nodes2,
+		SelDepth: new(int),
+	}
+	score2, move2, _ := negamax(sc2, depth, -EvalInfinity, EvalInfinity, 0)
 
 	// Assertions
 	assert.Equal(t, move1, move2, "Best move should be consistent")
@@ -136,10 +170,16 @@ func TestNegamax_DetectsDrawByRepetition(t *testing.T) {
 		game.ExecuteMove(move)
 	}
 
-	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Game state should recognize the 3-fold repetition after the move sequence")
+	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Game state should recognize the 3-fold repetition")
 
-	// Call negamax at the root (ply=0). It should immediately recognize the draw.
-	score, _, _ := negamax(context.Background(), game, 2, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int), 0)
+	sc := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &atomic.Int64{},
+		SelDepth: new(int),
+	}
+	// Call negamax with ply=1 to trigger draw detection
+	score, _, _ := negamax(sc, 2, -EvalInfinity, EvalInfinity, 1)
 
-	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition at the root, despite material advantage")
+	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition, despite material advantage")
 }

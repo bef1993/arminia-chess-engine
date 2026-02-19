@@ -54,7 +54,13 @@ func TestQuiescence_IncludesEnPassant(t *testing.T) {
 
 	// Evaluate at root should be 0 (equal material).
 	// Quiescence should find exd6 e.p. which wins a pawn.
-	score, _ := quiescence(context.Background(), game, -EvalInfinity, EvalInfinity, 0, new(atomic.Int64), new(int), 0)
+	sc := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &atomic.Int64{},
+		SelDepth: new(int),
+	}
+	score, _ := quiescence(sc, -EvalInfinity, EvalInfinity, 0)
 
 	// Score should reflect winning a pawn (~100)
 	// We use 50 as a safe lower bound for a pawn advantage

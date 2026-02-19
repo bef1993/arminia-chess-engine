@@ -30,10 +30,10 @@ func (s *moveSorter) Less(i, j int) bool { return s.scores[i] > s.scores[j] }
 // 3. Promotions: 1,000,000 + PromotionPieceValue * 10
 //   - Queen promotion: 1,009,000.
 //
-// 4. Quiet Moves: 0
-
-func orderMoves(game *engine.Game, moves []engine.Move, ttMove engine.Move, threadID int) {
+// 4. Quiet Moves: 0 (or small random value if randomization is enabled)
+func orderMoves(sc *SearchContext, moves []engine.Move, ttMove engine.Move) {
 	scores := make([]int, len(moves))
+	game := sc.Game
 
 	for i, move := range moves {
 		if move == ttMove {
@@ -67,10 +67,10 @@ func orderMoves(game *engine.Game, moves []engine.Move, ttMove engine.Move, thre
 		}
 
 		// Lazy SMP Randomness / Divergence
-		// For helper threads (threadID > 0), add a small pseudo-random component
-		// to shuffle moves with similar scores (e.g. quiet moves).
-		if threadID > 0 {
-			score += (move.From * move.To * threadID) % 10000
+		// If a random generator is provided (helper threads), add small noise to ALL moves
+		// to encourage exploring different branches, even among captures.
+		if sc.Rand != nil {
+			score += sc.Rand.Intn(10) // Small noise 0-9
 		}
 
 		scores[i] = score

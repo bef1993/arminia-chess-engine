@@ -3,8 +3,10 @@ package search
 import (
 	"arminia-chess-engine/internal/engine"
 	"context"
+	"math/rand"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // scoreToTT converts a search score to a TT score (independent of ply)
@@ -45,6 +47,15 @@ type SearchOptions struct {
 	Threads  int
 }
 
+// SearchContext holds thread-local and shared state for the search
+type SearchContext struct {
+	Ctx      context.Context
+	Game     *engine.Game
+	Nodes    *atomic.Int64 // Shared node counter
+	SelDepth *int          // Thread-local max depth
+	Rand     *rand.Rand    // Thread-local random number generator (nil for main thread)
+}
+
 // Search finds the best move for the current position.
 // This is the entry point for the search algorithm.
 // Returns the best move, the score, and the number of nodes visited.
@@ -52,7 +63,7 @@ type SearchOptions struct {
 func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoCh chan<- SearchInfo) (engine.Move, int, int64) {
 	var bestMove engine.Move
 	var score int
-	var totalNodes atomic.Int64
+	totalNodes := atomic.Int64{}
 
 	bestMove = InitializeBestMoveFallback(game)
 
@@ -68,27 +79,48 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 	// Helpers search the same position to populate the TT.
 	for i := 1; i < numThreads; i++ {
 		wg.Add(1)
-		go func() {
+		go func(id int) {
 			defer wg.Done()
 			// Each thread needs its own game instance to avoid race conditions on board state
 			gameClone := game.Clone()
 			var helperSelDepth int
+
+			// Create thread-local RNG seeded with ID and time
+			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(id)))
+
+			sc := &SearchContext{
+				Ctx:      ctx,
+				Game:     gameClone,
+				Nodes:    &totalNodes,
+				SelDepth: &helperSelDepth,
+				Rand:     rng,
+			}
+
 			// Helpers run Iterative Deepening to populate TT.
 			for d := 1; d <= options.MaxDepth; d++ {
-				_, _, interrupted := negamax(ctx, gameClone, d, -EvalInfinity, EvalInfinity, 0, &totalNodes, &helperSelDepth, i)
+				_, _, interrupted := negamax(sc, d, -EvalInfinity, EvalInfinity, 0)
 				if interrupted || ctx.Err() != nil {
 					break
 				}
 			}
-		}()
+		}(i)
 	}
 
 	// Iterative Deepening
 	for depth := 1; depth <= options.MaxDepth; depth++ {
 		var selDepth int
+
+		sc := &SearchContext{
+			Ctx:      ctx,
+			Game:     game,
+			Nodes:    &totalNodes,
+			SelDepth: &selDepth,
+			Rand:     nil, // Main thread is deterministic
+		}
+
 		// The main thread performs the iterative deepening search.
 		// It shares the totalNodes counter and the TT with the helper threads.
-		eval, move, interrupted := negamax(ctx, game, depth, -EvalInfinity, EvalInfinity, 0, &totalNodes, &selDepth, 0)
+		eval, move, interrupted := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0)
 
 		if interrupted {
 			break
@@ -115,9 +147,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 		}
 	}
 
-	// Wait for all helper threads to finish.
-	// This is important because the context might be cancelled (e.g., by timeout),
-	// and we need to ensure they have exited before this function returns.
+	// Wait for helper threads to finish
 	wg.Wait()
 	return bestMove, score, totalNodes.Load()
 }

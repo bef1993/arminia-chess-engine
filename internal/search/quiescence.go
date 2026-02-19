@@ -2,25 +2,24 @@ package search
 
 import (
 	"arminia-chess-engine/internal/engine"
-	"context"
-	"sync/atomic"
 )
 
 // quiescence search extends the search at leaf nodes to avoid the horizon effect.
 // It only considers "noisy" moves (captures and promotions).
 // Returns: score, interrupted
-func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, nodes *atomic.Int64, selDepth *int, threadID int) (int, bool) {
-	if ply > *selDepth {
-		*selDepth = ply
+func quiescence(sc *SearchContext, alpha, beta, ply int) (int, bool) {
+	game := sc.Game
+	if ply > *sc.SelDepth {
+		*sc.SelDepth = ply
 	}
 
 	// Check for timeout every 2048 nodes
-	if (nodes.Load() & 2047) == 0 {
-		if ctx.Err() != nil {
+	if (sc.Nodes.Load() & 2047) == 0 {
+		if sc.Ctx.Err() != nil {
 			return 0, true
 		}
 	}
-	nodes.Add(1)
+	sc.Nodes.Add(1)
 
 	// --- Draw Detection ---
 	if game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial() {
@@ -65,12 +64,12 @@ func quiescence(ctx context.Context, game *engine.Game, alpha, beta, ply int, no
 	}
 
 	moves := game.GetNoisyMoves()
-	orderMoves(game, moves, ttMove, threadID)
+	orderMoves(sc, moves, ttMove)
 	var bestMove engine.Move
 
 	for _, move := range moves {
 		game.ExecuteMove(move)
-		score, interrupted := quiescence(ctx, game, -beta, -alpha, ply+1, nodes, selDepth, threadID)
+		score, interrupted := quiescence(sc, -beta, -alpha, ply+1)
 		if interrupted {
 			game.UnmakeMove()
 			return 0, true
