@@ -16,8 +16,8 @@ const (
 )
 
 // Piece-Square Tables (PST)
-// Values are from White's perspective.
-// For Black, we mirror the square (sq ^ 56) to flip the rank.
+// The PST are defined in human readable format (rank 1 at the bottom) and are indexed by square.
+// This means for White we mirror the square (sq ^ 56) to flip the rank.
 
 var pawnPST = [64]int{
 	0, 0, 0, 0, 0, 0, 0, 0,
@@ -117,14 +117,14 @@ func evaluatePiece(board engine.Board, pieceType engine.PieceType, table *[64]in
 	bb := board.Pieces[engine.White][pieceType]
 	for bb != 0 {
 		sq := bb.PopLSB()
-		score += val + table[sq]
+		// Mirror square for black (flip rank: sq ^ 56)
+		score += val + table[sq^56]
 	}
 	// Black
 	bb = board.Pieces[engine.Black][pieceType]
 	for bb != 0 {
 		sq := bb.PopLSB()
-		// Mirror square for black (flip rank: sq ^ 56)
-		score -= val + table[sq^56]
+		score -= val + table[sq]
 	}
 	return score
 }
