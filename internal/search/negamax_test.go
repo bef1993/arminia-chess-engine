@@ -183,3 +183,31 @@ func TestNegamax_DetectsDrawByRepetition(t *testing.T) {
 
 	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition, despite material advantage")
 }
+
+func TestNegamax_CheckExtension(t *testing.T) {
+	game := engine.NewEmptyGame()
+	// Setup: White King at e1, Black Rook at e8 (Check)
+	// White has quiet moves (e.g., Kf1) but no captures.
+	game.Board.SetPieceAt("e1", engine.WhiteKing)
+	game.Board.SetPieceAt("e8", engine.BlackRook)
+	game.CurrentTurn = engine.White
+
+	assert.True(t, game.Board.IsKingInCheck(engine.White), "White King should be in check")
+
+	selDepth := 0
+	sc := &SearchContext{
+		Ctx:      context.Background(),
+		Game:     game,
+		Nodes:    &atomic.Int64{},
+		SelDepth: &selDepth,
+	}
+
+	// Search with depth 1.
+	// If check extension works, it should search to depth 1+1 = 2.
+	// Since there are no captures, Q-search won't extend further.
+	// So selDepth should be 2.
+	// If no extension, selDepth would be 1.
+	negamax(sc, 1, -EvalInfinity, EvalInfinity, 0)
+
+	assert.GreaterOrEqual(t, selDepth, 2, "Search should extend depth when in check")
+}

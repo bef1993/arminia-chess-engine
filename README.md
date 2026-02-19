@@ -96,6 +96,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
 - **Lazy SMP**: Parallel search using helper threads to populate the lockless transposition table.
 - **Evaluation**: Piece-Square Tables (PST) to encourage positional play (center control, king safety).
+- **Check Extensions**: Extending search depth when the king is in check to improve tactical accuracy.
 
 ## Next Steps
 
@@ -107,7 +108,6 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - [ ] Endgame Tablebases
 - [ ] Killer Moves
 - [ ] History Heuristic
-- [ ] Check Extensions
 
 ## License
 

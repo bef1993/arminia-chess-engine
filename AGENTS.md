@@ -90,7 +90,6 @@ The engine is functional and strong (estimated ~1800+ Elo). The next phase focus
 1.  **Tapered Evaluation**: Interpolate between Middlegame and Endgame PSTs based on game phase.
 2.  **Killer Moves**: Store quiet moves that caused cutoffs at specific ply depths to prioritize them.
 3.  **History Heuristic**: Score quiet moves based on their historical success to improve ordering.
-4.  **Check Extensions**: Extend search depth when the king is in check to find mates.
 5.  **Endgame Tablebases**: Integrate Syzygy tablebases for perfect endgame play.
 
 ## Testing
