@@ -44,8 +44,17 @@ const (
 type PieceSquareTable [64]int
 
 var pieceSquareTables [3][6]PieceSquareTable
+var adjacentFilesBB [8]engine.Bitboard
+var whitePassedMask[64] engine.Bitboard
+var blackPassedMask[64] engine.Bitboard
 
 func init() {
+	initPieceSquareTables()
+	initAdjacentFiles()
+	initPassedPawnMasks()
+}
+
+func initPieceSquareTables() {
 	pieceSquareTables[Opening][engine.Pawn] = pawnPST
 	pieceSquareTables[Middlegame][engine.Pawn] = pawnPST // TODO: Add middlegame PST
 	pieceSquareTables[Endgame][engine.Pawn] = pawnPSTEndgame
@@ -69,7 +78,37 @@ func init() {
 	pieceSquareTables[Opening][engine.King] = kingPST // TODO: Add opening PST
 	pieceSquareTables[Middlegame][engine.King] = kingPST
 	pieceSquareTables[Endgame][engine.King] = kingPSTEndgame
+}
 
+func initAdjacentFiles() {
+	for i := 0; i < 8; i++ {
+		if i > 0 {
+			adjacentFilesBB[i] |= engine.FileA_BB << (i - 1)
+		}
+		if i < 7 {
+			adjacentFilesBB[i] |= engine.FileA_BB << (i + 1)
+		}
+	}
+}
+
+func initPassedPawnMasks() {
+	for sq := 0; sq < 64; sq++ {
+		file := sq % 8
+
+		// White
+		bb := adjacentFilesBB[file] | (engine.FileA_BB << file)
+		for r := 0; r <= sq/8; r++ {
+			bb &= ^(engine.Rank1_BB << (r * 8))
+		}
+		whitePassedMask[sq] = bb
+
+		// Black
+		bb = adjacentFilesBB[file] | (engine.FileA_BB << file)
+		for r := 7; r >= sq/8; r-- {
+			bb &= ^(engine.Rank1_BB << (r * 8))
+		}
+		blackPassedMask[sq] = bb
+	}
 }
 
 // Piece-Square Tables (PST)
@@ -215,6 +254,85 @@ func evaluatePosition(board engine.Board) int {
 		for bb != 0 {
 			sq := bb.PopLSB()
 			score -= evaluatePiece(sq, pieceType.Black(), phase)
+		}
+	}
+
+	score += evaluatePawnStructure(&board)
+
+	return score
+}
+
+const (
+	coveredPawnBonus    = 10
+	doubledPawnPenalty  = -20
+	isolatedPawnPenalty = -20
+)
+
+var passedPawnBonus = [8]int{0, 5, 10, 20, 35, 60, 100, 0}
+
+// evaluatePawnStructure evaluates the pawn structure of the position, including:
+// - Covered pawns: Pawns that are protected by another pawn.
+// - Doubled pawns: Multiple pawns on the same file.
+// - Isolated pawns: Pawns with no friendly pawns on adjacent files.
+// - Passed pawns: Pawns with no enemy pawns in front of them on the same or adjacent files.
+// Positive scores indicate an advantage for White, negative scores indicate an advantage for Black.
+func evaluatePawnStructure(board *engine.Board) int {
+	score := 0
+	whitePawns := board.Pieces[engine.White][engine.Pawn]
+	blackPawns := board.Pieces[engine.Black][engine.Pawn]
+
+	// Covered pawns and passed pawns
+	whitePawnsCopy := whitePawns
+	for whitePawnsCopy != 0 {
+		sq := whitePawnsCopy.PopLSB()
+		// Covered pawns
+		protectedPawns := engine.PawnAttacks[engine.White][sq] & whitePawns
+		score += protectedPawns.Count() * coveredPawnBonus
+
+		// Passed pawns
+		if (whitePassedMask[sq] & blackPawns) == 0 {
+			score += passedPawnBonus[engine.GetRank(sq)]
+		}
+	}
+	blackPawnsCopy := blackPawns
+	for blackPawnsCopy != 0 {
+		sq := blackPawnsCopy.PopLSB()
+		// Covered pawns
+		protectedPawns := engine.PawnAttacks[engine.Black][sq] & blackPawns
+		score -= protectedPawns.Count() * coveredPawnBonus
+
+		// Passed pawns
+		if (blackPassedMask[sq] & whitePawns) == 0 {
+			score -= passedPawnBonus[7-engine.GetRank(sq)]
+		}
+	}
+
+	// Doubled and isolated pawns
+	for file := 0; file < 8; file++ {
+		fileBB := engine.FileA_BB << file
+		whitePawnsOnFile := whitePawns & fileBB
+		blackPawnsOnFile := blackPawns & fileBB
+		whitePawnsOnFileCount := whitePawnsOnFile.Count()
+		blackPawnsOnFileCount := blackPawnsOnFile.Count()
+
+		// Doubled pawns
+		if whitePawnsOnFileCount > 1 {
+			score += (whitePawnsOnFileCount - 1) * doubledPawnPenalty
+		}
+		if blackPawnsOnFileCount > 1 {
+			score -= (blackPawnsOnFileCount - 1) * doubledPawnPenalty
+		}
+
+		// Isolated pawns
+		if whitePawnsOnFileCount > 0 {
+			if (whitePawns & adjacentFilesBB[file]) == 0 {
+				score += isolatedPawnPenalty
+			}
+		}
+		if blackPawnsOnFileCount > 0 {
+			if (blackPawns & adjacentFilesBB[file]) == 0 {
+				score -= isolatedPawnPenalty
+			}
 		}
 	}
 
