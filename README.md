@@ -87,27 +87,38 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 
 ## Implemented Optimizations
 
+- **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
+
+### Search Algorithm
+
 - **Zobrist Hashing**: Efficient board state representation for table lookups.
 - **Transposition Tables**: Caching search results to avoid redundant calculations.
 - **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
 - **Iterative Deepening**: Searching to increasing depths to ensure the best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
-- **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
-- **Bitboards**: Full bitboard implementation using Magic Bitboards for sliding pieces and pre-calculated attack tables.
 - **Lazy SMP**: Parallel search using helper threads to populate the lockless transposition table.
-- **Evaluation**: Piece-Square Tables (PST) to encourage positional play (center control, king safety).
+- **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
 - **Check Extensions**: Extending search depth when the king is in check to improve tactical accuracy.
+
+### Evaluation
+
+- **Game Phases**: Concept of Opening, Middlegame and Endgame, based on material weights
+- **Piece-Square Tables**: PST to encourage positional play (center control, king safety).
+  - Game phase specific PST for pawns and kings, to encourage moving king and pawns up in the middle and endgame.
+- **Pawn Structure**: Give bonus for pawns covering each other and passed pawns. Discourage isolated and doubled pawns.
+- **Bishop Pair**: Give a small bonus for having both bishops
 
 ## Next Steps
 
 **Future Improvements (Phase 6):**
 
 - [ ] Move ordering for quiet moves
-- [ ] Tapered Evaluation (Variable King PST based on game phase)
 - [ ] Opening Books
 - [ ] Endgame Tablebases
 - [ ] Killer Moves
 - [ ] History Heuristic
+- [ ] Interpolate PST and piece values between game phases
+- [ ] General evaluation improvements
 
 ## License
 

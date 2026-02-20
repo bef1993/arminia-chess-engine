@@ -8,7 +8,7 @@ Arminia is a bitboard-based chess engine written in Go, implementing the UCI pro
 
 ### Directory Structure
 
-```
+```text
 cmd/
 ├── uci/                  # UCI entry point (for Lichess/GUIs)
 └── cli/                  # CLI entry point (for manual testing)
@@ -39,6 +39,7 @@ internal/
 ## Core Concepts
 
 ### 1. Board Representation (Bitboards)
+
 The board is represented using **Bitboards** (`uint64`), where each bit corresponds to a square (0=A1, 63=H8).
 
 - **`Board` Struct**:
@@ -50,26 +51,27 @@ The board is represented using **Bitboards** (`uint64`), where each bit correspo
   - `PopLSB()`: Efficiently iterates over set bits in a bitboard.
 
 ### 2. Move Generation
+
 Move generation is **pseudo-legal** followed by **legality filtering**.
 
-1.  **`GenerateAllPseudoLegalMoves()`** (`move_generation.go`):
+1. **`GenerateAllPseudoLegalMoves()`** (`move_generation.go`):
     - Iterates over piece bitboards.
     - Uses pre-calculated attack tables (`KnightAttacks`, `KingAttacks`, `PawnAttacks`) and sliding piece generators.
     - Generates moves that *might* leave the king in check.
-
-2.  **`GenerateLegalMoves()`** (`game.go`):
+2. **`GenerateLegalMoves()`** (`game.go`):
     - Calls `GenerateAllPseudoLegalMoves()`.
     - Filters moves using `isKingInCheckAfterMove()`, which temporarily makes the move and checks if the king is attacked.
 
 ### 3. Search & Evaluation
+
 - **Algorithm**: Negamax with Alpha-Beta pruning and Iterative Deepening.
 - **Quiescence Search**: Explores captures at leaf nodes to avoid the horizon effect.
 - **Transposition Table**: Zobrist hashing is used to cache positions and scores.
 - **Move Ordering**:
-  1.  Hash Move (from TT)
-  2.  Captures (MVV-LVA)
-  3.  Promotions
-  4.  Quiet Moves
+  1. Hash Move (from TT)
+  2. Captures (MVV-LVA)
+  3. Promotions
+  4. Quiet Moves
 - **Evaluation**: Material balance + Piece-Square Tables (PST) for positional understanding.
 
 ## Development Status
@@ -87,10 +89,10 @@ Move generation is **pseudo-legal** followed by **legality filtering**.
 
 The engine is functional and strong (estimated ~1800+ Elo). The next phase focuses on advanced optimizations:
 
-1.  **Tapered Evaluation**: Interpolate between Middlegame and Endgame PSTs based on game phase.
-2.  **Killer Moves**: Store quiet moves that caused cutoffs at specific ply depths to prioritize them.
-3.  **History Heuristic**: Score quiet moves based on their historical success to improve ordering.
-5.  **Endgame Tablebases**: Integrate Syzygy tablebases for perfect endgame play.
+1. **Tapered Evaluation**: Interpolate between Middlegame and Endgame PSTs based on game phase.
+2. **Killer Moves**: Store quiet moves that caused cutoffs at specific ply depths to prioritize them.
+3. **History Heuristic**: Score quiet moves based on their historical success to improve ordering.
+4. **Endgame Tablebases**: Integrate Syzygy tablebases for perfect endgame play.
 
 ## Testing
 
@@ -99,6 +101,7 @@ The engine is functional and strong (estimated ~1800+ Elo). The next phase focus
 - **CLI**: Use `bin/arminia-cli` for manual interaction and debugging.
 
 ### Best Practices for New Tests
+
 When adding new tests, prefer using human-readable strings for squares and moves to improve readability and maintainability.
 
 - **Setup**: Use `game.Board.SetPieceAt("e4", WhitePawn)` instead of raw indices.
@@ -106,6 +109,7 @@ When adding new tests, prefer using human-readable strings for squares and moves
 - **Helpers**: Use `Sq("e4")` if you need the integer index of a square.
 
 Example:
+
 ```go
 func TestMyFeature(t *testing.T) {
     game := NewEmptyGame()
@@ -119,6 +123,7 @@ func TestMyFeature(t *testing.T) {
 ```
 
 ## Code Style
+
 - Use `go fmt`.
 - Prefer explicit variable names (`rank`, `file`, `sq`) over generic ones (`r`, `c`, `i`).
 - Use `slog` for logging (only in UCI mode or CLI, never in search loop).

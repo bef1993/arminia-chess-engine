@@ -15,6 +15,14 @@ const (
 	MateBound = EvalMate - 1000
 )
 
+const (
+	coveredPawnBonus    = 10
+	doubledPawnPenalty  = -20
+	isolatedPawnPenalty = -20
+
+	bishopPairBonus = 30
+)
+
 // Piece values for standard material counting and move ordering
 const (
 	PawnValue   = 100
@@ -237,6 +245,7 @@ func determineGamePhase(board *engine.Board) GamePhase {
 func evaluatePosition(board engine.Board) int {
 	score := 0
 
+
 	phase := determineGamePhase(&board)
 
 	// Evaluate pieces for White
@@ -257,16 +266,18 @@ func evaluatePosition(board engine.Board) int {
 		}
 	}
 
+	// Bishop pair bonus
+	if board.Pieces[engine.White][engine.Bishop].Count() >= 2 {
+		score += bishopPairBonus
+	}
+	if board.Pieces[engine.Black][engine.Bishop].Count() >= 2 {
+		score -= bishopPairBonus
+	}
+
 	score += evaluatePawnStructure(&board)
 
 	return score
 }
-
-const (
-	coveredPawnBonus    = 10
-	doubledPawnPenalty  = -20
-	isolatedPawnPenalty = -20
-)
 
 var passedPawnBonus = [8]int{0, 5, 10, 20, 35, 60, 100, 0}
 
