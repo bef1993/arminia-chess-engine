@@ -107,6 +107,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
   - Game phase specific PST for pawns and kings, to encourage moving king and pawns up in the middle and endgame.
 - **Pawn Structure**: Give bonus for pawns covering each other and passed pawns. Discourage isolated and doubled pawns.
 - **Bishop Pair**: Give a small bonus for having both bishops
+- **Mobility**: Give a small bonus when pieces have more pseudo-legal moves available
 
 ## Next Steps
 

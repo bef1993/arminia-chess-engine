@@ -23,6 +23,18 @@ const (
 	bishopPairBonus = 30
 )
 
+const (
+	mgKnightMobilityBonus = 1
+	mgBishopMobilityBonus = 2
+	mgRookMobilityBonus   = 2
+	mgQueenMobilityBonus  = 4
+
+	egKnightMobilityBonus = 2
+	egBishopMobilityBonus = 2
+	egRookMobilityBonus   = 3
+	egQueenMobilityBonus  = 4
+)
+
 // Piece values for standard material counting and move ordering
 const (
 	PawnValue   = 100
@@ -53,13 +65,32 @@ type PieceSquareTable [64]int
 
 var pieceSquareTables [3][6]PieceSquareTable
 var adjacentFilesBB [8]engine.Bitboard
-var whitePassedMask[64] engine.Bitboard
-var blackPassedMask[64] engine.Bitboard
+var whitePassedMask [64]engine.Bitboard
+var blackPassedMask [64]engine.Bitboard
 
 func init() {
 	initPieceSquareTables()
 	initAdjacentFiles()
 	initPassedPawnMasks()
+}
+
+func pieceValue(pieceType engine.PieceType) int {
+	switch pieceType {
+	case engine.Pawn:
+		return PawnValue
+	case engine.Knight:
+		return KnightValue
+	case engine.Bishop:
+		return BishopValue
+	case engine.Rook:
+		return RookValue
+	case engine.Queen:
+		return QueenValue
+	case engine.King:
+		return KingValue
+	default:
+		return 0
+	}
 }
 
 func initPieceSquareTables() {
@@ -245,7 +276,6 @@ func determineGamePhase(board *engine.Board) GamePhase {
 func evaluatePosition(board engine.Board) int {
 	score := 0
 
-
 	phase := determineGamePhase(&board)
 
 	// Evaluate pieces for White
@@ -275,6 +305,8 @@ func evaluatePosition(board engine.Board) int {
 	}
 
 	score += evaluatePawnStructure(&board)
+	score += evaluateMobility(&board, phase)
+	score += evaluateThreats(&board, phase)
 
 	return score
 }
@@ -359,21 +391,107 @@ func evaluatePiece(sq int, piece engine.Piece, phase GamePhase) int {
 	return score
 }
 
-func pieceValue(pieceType engine.PieceType) int {
+func getMobilityBonus(pieceType engine.PieceType, phase GamePhase) int {
 	switch pieceType {
-	case engine.Pawn:
-		return PawnValue
 	case engine.Knight:
-		return KnightValue
+		if phase == Endgame {
+			return egKnightMobilityBonus
+		}
+		return mgKnightMobilityBonus
 	case engine.Bishop:
-		return BishopValue
+		if phase == Endgame {
+			return egBishopMobilityBonus
+		}
+		return mgBishopMobilityBonus
 	case engine.Rook:
-		return RookValue
+		if phase == Endgame {
+			return egRookMobilityBonus
+		}
+		return mgRookMobilityBonus
 	case engine.Queen:
-		return QueenValue
-	case engine.King:
-		return KingValue
+		if phase == Endgame {
+			return egQueenMobilityBonus
+		}
+		return mgQueenMobilityBonus
 	default:
 		return 0
 	}
+}
+
+// evaluateMobility calculates a mobility score based on the number of pseudo-legal moves available to each side.
+// It gives a small bonus for each legal move, with different weights for different piece types and game phases.
+// Positive scores indicate an advantage for White, negative scores indicate an advantage for Black.
+func evaluateMobility(board *engine.Board, phase GamePhase) int {
+	score := 0
+
+	allPieces := board.Occupancy[engine.AnyColor]
+	whitePieces := board.Occupancy[engine.White]
+	blackPieces := board.Occupancy[engine.Black]
+
+	// White mobility
+	// Knights
+	knights := board.Pieces[engine.White][engine.Knight]
+	for knights != 0 {
+		sq := knights.PopLSB()
+		moves := engine.KnightAttacks[sq] &^ whitePieces
+		score += moves.Count() * getMobilityBonus(engine.Knight, phase)
+	}
+	// Bishops
+	bishops := board.Pieces[engine.White][engine.Bishop]
+	for bishops != 0 {
+		sq := bishops.PopLSB()
+		moves := engine.GetBishopAttacks(sq, allPieces) &^ whitePieces
+		score += moves.Count() * getMobilityBonus(engine.Bishop, phase)
+	}
+	// Rooks
+	rooks := board.Pieces[engine.White][engine.Rook]
+	for rooks != 0 {
+		sq := rooks.PopLSB()
+		moves := engine.GetRookAttacks(sq, allPieces) &^ whitePieces
+		score += moves.Count() * getMobilityBonus(engine.Rook, phase)
+	}
+	// Queens
+	queens := board.Pieces[engine.White][engine.Queen]
+	for queens != 0 {
+		sq := queens.PopLSB()
+		moves := engine.GetQueenAttacks(sq, allPieces) &^ whitePieces
+		score += moves.Count() * getMobilityBonus(engine.Queen, phase)
+	}
+
+	// Black mobility
+	// Knights
+	knights = board.Pieces[engine.Black][engine.Knight]
+	for knights != 0 {
+		sq := knights.PopLSB()
+		moves := engine.KnightAttacks[sq] &^ blackPieces
+		score -= moves.Count() * getMobilityBonus(engine.Knight, phase)
+	}
+	// Bishops
+	bishops = board.Pieces[engine.Black][engine.Bishop]
+	for bishops != 0 {
+		sq := bishops.PopLSB()
+		moves := engine.GetBishopAttacks(sq, allPieces) &^ blackPieces
+		score -= moves.Count() * getMobilityBonus(engine.Bishop, phase)
+	}
+	// Rooks
+	rooks = board.Pieces[engine.Black][engine.Rook]
+	for rooks != 0 {
+		sq := rooks.PopLSB()
+		moves := engine.GetRookAttacks(sq, allPieces) &^ blackPieces
+		score -= moves.Count() * getMobilityBonus(engine.Rook, phase)
+	}
+	// Queens
+	queens = board.Pieces[engine.Black][engine.Queen]
+	for queens != 0 {
+		sq := queens.PopLSB()
+		moves := engine.GetQueenAttacks(sq, allPieces) &^ blackPieces
+		score -= moves.Count() * getMobilityBonus(engine.Queen, phase)
+	}
+
+	return score
+}
+
+func evaluateThreats(board *engine.Board, phase GamePhase) int {
+	// TODO implement
+	return 0
 }
