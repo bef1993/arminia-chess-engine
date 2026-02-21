@@ -28,7 +28,8 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int) (int, engin
 	// We do not want to store repetion draws in the TT because the draw depends on how the position was reached
 	// Since we check this before probing the TT, we can avoid storing these positions in the TT and just return a score of 0 immediately.
 	// If we are at the root node, we want to search the position anyway to report stats, so we only return 0 for draw positions at ply > 0.
-	if ply > 0 && (game.IsDrawByFiftyMoveRule() || game.CanClaimDrawByThreefoldRepetition() || game.IsInsufficientMaterial()) {
+	// Altough a game is only a draw after 3 repetitions, we return 0 after the 2nd repetition to avoid searching further into a known draw position. This is a common approach in chess engines to save time on known draw positions.
+	if ply > 0 && (game.IsDrawByFiftyMoveRule() || game.GetRepetitionCount() >= 2 || game.IsInsufficientMaterial()) {
 		return 0, engine.Move{}, false
 	}
 
