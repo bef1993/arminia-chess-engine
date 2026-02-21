@@ -306,7 +306,7 @@ func evaluatePosition(board engine.Board) int {
 
 	score += evaluatePawnStructure(&board)
 	score += evaluateMobility(&board, phase)
-	score += evaluateThreats(&board, phase)
+	score += evaluateThreats(&board)
 
 	return score
 }
@@ -491,7 +491,86 @@ func evaluateMobility(board *engine.Board, phase GamePhase) int {
 	return score
 }
 
-func evaluateThreats(board *engine.Board, phase GamePhase) int {
-	// TODO implement
-	return 0
+func evaluateThreats(board *engine.Board) int {
+	score := 0
+	colors := [2]engine.Color{engine.White, engine.Black}
+
+	for _, color := range colors {
+		for pieceType := engine.Pawn; pieceType <= engine.King; pieceType++ {
+			pieces := board.Pieces[color][pieceType]
+			for pieces != 0 {
+				sq := pieces.PopLSB()
+
+				opponentColor := color.Opposite()
+				attackers := getAttackers(board, sq, opponentColor)
+
+				if attackers == 0 {
+					continue
+				}
+
+				defenders := getAttackers(board, sq, color)
+				threatScore := 0
+
+				if defenders == 0 {
+					// The piece is hanging. It is attacked and not defended.
+					// Penalty is the hanging piece penalty plus a fraction of the piece's value.
+					threatScore = HangingPiecePenalty + pieceValue(pieceType)/4
+				} else {
+					// The piece is defended. Check if it is attacked by a less valuable piece.
+					leastAttacker, found := getLeastValuableAttacker(board, sq, opponentColor)
+					if found && pieceValue(leastAttacker) < pieceValue(pieceType) {
+						// Attacked by a less valuable piece, e.g., a queen attacked by a pawn.
+						// This is a tactical weakness. The penalty is proportional to the difference in value.
+						threatScore = (pieceValue(pieceType) - pieceValue(leastAttacker)) / 4
+					}
+				}
+
+				if color == engine.White {
+					score -= threatScore
+				} else {
+					score += threatScore
+				}
+			}
+		}
+	}
+	return score
+}
+
+const (
+	HangingPiecePenalty = 100
+)
+
+// getAttackers returns a bitboard of all pieces of a given color that attack a given square.
+func getAttackers(board *engine.Board, sq int, color engine.Color) engine.Bitboard {
+	var attackers engine.Bitboard
+	allPieces := board.Occupancy[engine.AnyColor]
+
+	// Pawn attacks
+	attackers |= engine.PawnAttacks[color.Opposite()][sq] & board.Pieces[color][engine.Pawn]
+	// Knight attacks
+	attackers |= engine.KnightAttacks[sq] & board.Pieces[color][engine.Knight]
+	// King attacks
+	attackers |= engine.KingAttacks[sq] & board.Pieces[color][engine.King]
+	// Bishop/Queen attacks
+	bishopAttacks := engine.GetBishopAttacks(sq, allPieces)
+	attackers |= bishopAttacks & (board.Pieces[color][engine.Bishop] | board.Pieces[color][engine.Queen])
+	// Rook/Queen attacks
+	rookAttacks := engine.GetRookAttacks(sq, allPieces)
+	attackers |= rookAttacks & (board.Pieces[color][engine.Rook] | board.Pieces[color][engine.Queen])
+
+	return attackers
+}
+
+// getLeastValuableAttacker returns the piece type of the least valuable piece attacking a square.
+func getLeastValuableAttacker(board *engine.Board, sq int, color engine.Color) (engine.PieceType, bool) {
+	attackers := getAttackers(board, sq, color)
+	if attackers == 0 {
+		return 0, false
+	}
+	for pt := engine.Pawn; pt <= engine.King; pt++ {
+		if (attackers & board.Pieces[color][pt]) != 0 {
+			return pt, true
+		}
+	}
+	return 0, false
 }

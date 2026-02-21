@@ -108,6 +108,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - **Pawn Structure**: Give bonus for pawns covering each other and passed pawns. Discourage isolated and doubled pawns.
 - **Bishop Pair**: Give a small bonus for having both bishops
 - **Mobility**: Give a small bonus when pieces have more pseudo-legal moves available
+- **Threats**: Give penalties for hanging pieces that are attacked, and defended pieces that are attacked by pieces of lesser value.
 
 ## Next Steps
 
@@ -118,7 +119,6 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - [ ] Endgame Tablebases
 - [ ] Killer Moves
 - [ ] History Heuristic
-- [ ] Interpolate PST and piece values between game phases
 - [ ] General evaluation improvements
 
 ## License

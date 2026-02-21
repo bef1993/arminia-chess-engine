@@ -22,7 +22,12 @@ const (
 	King
 )
 
-
+func (c Color) Opposite() Color {
+	if c == White {
+		return Black
+	}
+	return White
+}
 
 func (p PieceType) White() Piece {
 	return Piece(p)

@@ -63,11 +63,7 @@ func NewEmptyGame() *Game {
 
 // SwitchTurn changes the current turn to the other player
 func (g *Game) SwitchTurn() {
-	if g.CurrentTurn == White {
-		g.CurrentTurn = Black
-	} else {
-		g.CurrentTurn = White
-	}
+	g.CurrentTurn = g.CurrentTurn.Opposite()
 }
 
 // ExecuteMove executes a move on the board and updates game state
