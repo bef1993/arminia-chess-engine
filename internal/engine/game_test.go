@@ -875,3 +875,15 @@ func TestPromotionCanBlockChecks(t *testing.T) {
 	legal = !game.isKingInCheckAfterMove(move)
 	assert.False(t, legal, "Promotion b2-b1=Q does not block check from e8 and should be illegal")
 }
+
+func TestClone_PreservesPreviousState(t *testing.T) {
+	g := NewGame()
+	move := NewMove(Sq("e2"), Sq("e4"))
+	g.ExecuteMove(move)
+
+	assert.NotNil(t, g.PreviousState, "PreviousState should be set")
+
+	clone := g.Clone()
+	assert.NotNil(t, clone.PreviousState, "Clone PreviousState should be set")
+	assert.Equal(t, g.PreviousState, clone.PreviousState, "Clone should point to same PreviousState object")
+}

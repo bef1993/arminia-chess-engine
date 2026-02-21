@@ -1,6 +1,7 @@
 package uci
 
 import (
+	"arminia-chess-engine/internal/debug"
 	"arminia-chess-engine/internal/engine"
 	"arminia-chess-engine/internal/search"
 	"bufio"
@@ -402,6 +403,7 @@ func (u *Protocol) runSearch(options search.SearchOptions, duration time.Duratio
 
 	// Goroutine 1: Consumer (UCI Output)
 	u.searchWg.Go(func() {
+		defer debug.Recover("UCI Consumer")
 		defer close(consumerDone)
 		start := time.Now()
 		for info := range infoCh {
@@ -411,6 +413,7 @@ func (u *Protocol) runSearch(options search.SearchOptions, duration time.Duratio
 
 	// Goroutine 2: Producer (Search Execution)
 	u.searchWg.Go(func() {
+		defer debug.Recover("Search Execution")
 		defer cancel() // Ensure resources are released
 
 		move, _, _ := search.Search(ctx, u.game, options, infoCh)

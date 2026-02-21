@@ -36,6 +36,12 @@ internal/
     └── protocol.go       # Command parsing and main loop
 ```
 
+## Build and Dependencies
+
+This project targets Go 1.26 or newer. It leverages modern language features, including:
+
+- **`sync.WaitGroup.Go`**: This method, introduced in Go 1.26, provides a concise way to launch a goroutine and automatically manage the WaitGroup counter (Add(1) before, Done() after). All new concurrent code should prefer this method.
+
 ## Core Concepts
 
 ### 1. Board Representation (Bitboards)

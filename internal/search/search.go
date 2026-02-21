@@ -78,15 +78,13 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 	// Spawn helper threads (Lazy SMP)
 	// Helpers search the same position to populate the TT.
 	for i := 1; i < numThreads; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			// Each thread needs its own game instance to avoid race conditions on board state
-			gameClone := game.Clone()
+		threadId := i
+		gameClone := game.Clone()
+		wg.Go(func() {
 			var helperSelDepth int
 
 			// Create thread-local RNG seeded with ID and time
-			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(id)))
+			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(threadId)))
 
 			sc := &SearchContext{
 				Ctx:      ctx,
@@ -103,7 +101,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 					break
 				}
 			}
-		}(i)
+		})
 	}
 
 	// Iterative Deepening

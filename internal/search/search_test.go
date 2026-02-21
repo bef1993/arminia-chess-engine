@@ -138,3 +138,36 @@ func TestSearch_RespectsCancellation(t *testing.T) {
 	assert.NotEqual(t, engine.Move{}, move, "Should return a valid move")
 	assert.Less(t, elapsed, 50*time.Millisecond, "Search should stop immediately after cancellation")
 }
+
+func TestSearch_AvoidsRepetitionWhenWinning(t *testing.T) {
+	// Setup a winning position for White
+	// White King e1, Rook a1. Black King e8.
+	// White is winning (Rook up).
+	game := engine.NewGame()
+	game.Board.Clear()
+	game.Board.SetPieceAt("e1", engine.WhiteKing)
+	game.Board.SetPieceAt("a1", engine.WhiteRook)
+	game.Board.SetPieceAt("e8", engine.BlackKing)
+	game.CurrentTurn = engine.White
+	game.CastlingRights = engine.NoCastling
+
+	// Create a history of repetition
+	// We want the move Ra1-b1 to lead to "Pos B" for the 3rd time.
+	moves := []string{
+		"a1b1", "e8d8", // 1
+		"b1a1", "d8e8", // 2
+		"a1b1", "e8d8", // 3
+		"b1a1", "d8e8", // 4
+	}
+
+	for _, m := range moves {
+		move, _ := engine.ParseMove(m, game)
+		game.ExecuteMove(move)
+	}
+
+	// Verify Ra1-b1 is a repetition
+	clone := game.Clone()
+	move, _ := engine.ParseMove("a1b1", clone)
+	clone.ExecuteMove(move)
+	assert.True(t, clone.CanClaimDrawByThreefoldRepetition(), "a1b1 should lead to 3rd repetition")
+}

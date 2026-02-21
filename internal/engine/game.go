@@ -298,17 +298,19 @@ func (g *Game) IsDrawByFiftyMoveRule() bool {
 
 // CanClaimDrawByThreefoldRepetition checks if current position has occurred 3 times
 func (g *Game) CanClaimDrawByThreefoldRepetition() bool {
+	return g.GetRepetitionCount() >= 3
+}
+
+// GetRepetitionCount returns the number of times the current position has occurred.
+func (g *Game) GetRepetitionCount() int {
 	currentHash := g.ZobristHash
 	count := 1
-
-	// Iterate through all PreviousGameStates and increment counter when the hash matches
 	for prev := g.PreviousState; prev != nil; prev = prev.PreviousState {
 		if prev.ZobristHash == currentHash {
 			count++
 		}
 	}
-
-	return count >= 3
+	return count
 }
 
 // IsCheckmate checks if the current turn player is in checkmate
