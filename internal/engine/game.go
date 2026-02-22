@@ -206,6 +206,33 @@ func (g *Game) ExecuteMove(move Move) bool {
 	return true
 }
 
+// ExecuteNullMove executes a null move (passing the turn).
+// Used for Null Move Pruning in search.
+func (g *Game) ExecuteNullMove() {
+	oldGame := g.Clone()
+	g.PreviousState = oldGame
+
+	// Update Hash: Remove old EP target
+	if g.EnPassantTarget != -1 {
+		g.ZobristHash ^= zobristEnPassant[GetFile(g.EnPassantTarget)]
+	} else {
+		g.ZobristHash ^= zobristEnPassant[8]
+	}
+
+	// Set new EP target to none
+	g.EnPassantTarget = -1
+	g.ZobristHash ^= zobristEnPassant[8]
+
+	// Update counters
+	if g.CurrentTurn == Black {
+		g.FullMoveCounter++
+	}
+	g.HalfMoveClock++
+
+	// Switch turn (updates hash)
+	g.SwitchTurn()
+}
+
 // updateCastlingRights revokes castling rights if king or rook moves or is captured
 func (g *Game) updateCastlingRights(move Move, piece Piece, targetPiece Piece) {
 	fromFile := GetFile(move.From)

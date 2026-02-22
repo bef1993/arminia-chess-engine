@@ -195,6 +195,11 @@ func (b *Board) IsOccupiedByColor(sq int, color Color) bool {
 	return b.Occupancy[color].IsSet(sq)
 }
 
+// HasNonPawnMaterial checks if the given color has any non-pawn pieces (Knight, Bishop, Rook, Queen).
+func (b *Board) HasNonPawnMaterial(color Color) bool {
+	return (b.Pieces[color][Knight] | b.Pieces[color][Bishop] | b.Pieces[color][Rook] | b.Pieces[color][Queen]) != 0
+}
+
 // FindKing locates the king of the given color and returns its position
 // Returns -1 if king is not found
 func (b *Board) FindKing(color Color) int {
