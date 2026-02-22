@@ -9,8 +9,9 @@ import (
 // depth is the remaining search depth.
 // alpha and beta are the current bounds for pruning.
 // ply is the current depth in the tree (used for TT score adjustments to prefer faster checkmates).
+// extensions counts how many times we've used Check Extensions in the current line.
 // Returns: score, bestMove, interrupted
-func negamax(sc *SearchContext, depth int, alpha, beta int, ply int) (int, engine.Move, bool) {
+func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions int) (int, engine.Move, bool) {
 	game := sc.Game
 	if ply > *sc.SelDepth {
 		*sc.SelDepth = ply
@@ -63,9 +64,11 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int) (int, engin
 
 	// Check Extensions
 	// If the side to move is in check, we extend the search depth by 1 to find a defense or mate.
+	// We limit the number of extensions for performance reasons
 	inCheck := game.Board.IsKingInCheck(game.CurrentTurn)
-	if inCheck {
+	if inCheck && extensions < 3 {
 		depth++
+		extensions++
 	}
 
 	if depth == 0 {
@@ -99,7 +102,7 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int) (int, engin
 
 	for _, move := range moves {
 		game.ExecuteMove(move)
-		score, _, interrupted := negamax(sc, depth-1, -beta, -alpha, ply+1)
+		score, _, interrupted := negamax(sc, depth-1, -beta, -alpha, ply+1, extensions)
 		if interrupted {
 			game.UnmakeMove()
 			return 0, engine.Move{}, true

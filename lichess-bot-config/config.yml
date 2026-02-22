@@ -161,7 +161,7 @@ challenge:                         # Incoming challenges.
     - bullet
     - blitz
     - rapid
-    - classical
+#   - classical
 #   - correspondence
   modes:                           # Game modes to accept.
     - casual                       # Unrated games.
@@ -202,7 +202,7 @@ matchmaking:
   challenge_timeout: 1            # Create a challenge after being idle for 'challenge_timeout' minutes. The minimum is 1 minute.
   challenge_initial_time:          # Initial time in seconds of the challenge (to be chosen at random).
     - 60
-    - 180
+    - 120
   challenge_increment:             # Increment in seconds of the challenge (to be chosen at random).
     - 1
     - 2

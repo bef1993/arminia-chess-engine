@@ -96,7 +96,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 
 			// Helpers run Iterative Deepening to populate TT.
 			for d := 1; d <= options.MaxDepth; d++ {
-				_, _, interrupted := negamax(sc, d, -EvalInfinity, EvalInfinity, 0)
+				_, _, interrupted := negamax(sc, d, -EvalInfinity, EvalInfinity, 0, 0)
 				if interrupted || ctx.Err() != nil {
 					break
 				}
@@ -118,7 +118,7 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 
 		// The main thread performs the iterative deepening search.
 		// It shares the totalNodes counter and the TT with the helper threads.
-		eval, move, interrupted := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0)
+		eval, move, interrupted := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0, 0)
 
 		if interrupted {
 			break

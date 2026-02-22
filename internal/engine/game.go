@@ -61,8 +61,9 @@ func NewEmptyGame() *Game {
 	return g
 }
 
-// SwitchTurn changes the current turn to the other player
+// SwitchTurn changes the current turn to the other player, changes the hash
 func (g *Game) SwitchTurn() {
+	g.ZobristHash ^= zobristBlackTurn
 	g.CurrentTurn = g.CurrentTurn.Opposite()
 }
 
@@ -88,7 +89,6 @@ func (g *Game) ExecuteMove(move Move) bool {
 	} else {
 		hash ^= zobristEnPassant[8]
 	}
-	hash ^= zobristBlackTurn // Toggle turn
 
 	// XOR out moving piece from source
 	hash ^= zobristPiece[piece.Color()][piece.Type()][move.From]
@@ -193,9 +193,6 @@ func (g *Game) ExecuteMove(move Move) bool {
 		g.FullMoveCounter++
 	}
 
-	// Switch turns
-	g.SwitchTurn()
-
 	// XOR in new state (Castling, EP)
 	hash ^= zobristCastling[g.CastlingRights]
 	if g.EnPassantTarget != -1 {
@@ -205,6 +202,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	}
 
 	g.ZobristHash = hash
+	g.SwitchTurn()
 	return true
 }
 

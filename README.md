@@ -98,7 +98,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Lazy SMP**: Parallel search using helper threads to populate the lockless transposition table.
 - **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
-- **Check Extensions**: Extending search depth when the king is in check to improve tactical accuracy.
+- **Check Extensions**: Extending search depth when the king is in check to improve tactical accuracy (up to 3 times).
 
 ### Evaluation
 
