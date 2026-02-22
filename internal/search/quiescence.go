@@ -64,7 +64,7 @@ func quiescence(sc *SearchContext, alpha, beta, ply int) (int, bool) {
 	}
 
 	moves := game.GetNoisyMoves()
-	orderMoves(sc, moves, ttMove)
+	orderMoves(sc, moves, ttMove, 0)
 	var bestMove engine.Move
 
 	for _, move := range moves {

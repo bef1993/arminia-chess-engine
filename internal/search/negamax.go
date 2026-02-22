@@ -128,8 +128,7 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	}
 
 	// Move Ordering: Try the move from TT first (Hash Move)
-	// TODO: Improve move ordering for quiet moves (e.g., Killer Moves, History Heuristic)
-	orderMoves(sc, moves, ttMove)
+	orderMoves(sc, moves, ttMove, ply)
 
 	bestScore := -EvalInfinity
 	var bestMove engine.Move
@@ -152,6 +151,25 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 			alpha = score
 		}
 		if alpha >= beta {
+			// Killer Moves - Beta Cutoff
+			// If this is a quiet move, store it as a Killer Move
+			// We need to check if it was a capture.
+			// Since we already unmade the move, we check the board state (which is restored).
+			// Note: We need to check the move properties relative to the state BEFORE execution.
+			// Since we unmade the move, 'game.Board' is back to the pre-move state.
+			target := game.Board.GetPiece(move.To)
+			isCapture := target != engine.NoPiece
+			if !isCapture {
+				// Check En Passant (Pawn move to EP target)
+				piece := game.Board.GetPiece(move.From)
+				if piece.Type() == engine.Pawn && move.To == game.EnPassantTarget && (move.To%8 != move.From%8) {
+					isCapture = true
+				}
+			}
+
+			if !isCapture {
+				storeKiller(sc, ply, move)
+			}
 			break // Beta cutoff
 		}
 	}

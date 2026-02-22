@@ -3,7 +3,6 @@ package search
 import (
 	"arminia-chess-engine/internal/engine"
 	"context"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,13 +53,7 @@ func TestQuiescence_IncludesEnPassant(t *testing.T) {
 
 	// Evaluate at root should be 0 (equal material).
 	// Quiescence should find exd6 e.p. which wins a pawn.
-	sc := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &atomic.Int64{},
-		SelDepth: new(int),
-	}
-	score, _ := quiescence(sc, -EvalInfinity, EvalInfinity, 0)
+	score, _ := quiescence(NewSearchContext(game), -EvalInfinity, EvalInfinity, 0)
 
 	// Score should reflect winning a pawn (~100)
 	// We use 50 as a safe lower bound for a pawn advantage

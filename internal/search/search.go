@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// MaxPly is the maximum search depth we support for arrays indexed by ply
+const MaxPly = 64
+
 // scoreToTT converts a search score to a TT score (independent of ply)
 func scoreToTT(score, ply int) int {
 	if score > MateBound {
@@ -49,11 +52,23 @@ type SearchOptions struct {
 
 // SearchContext holds thread-local and shared state for the search
 type SearchContext struct {
-	Ctx      context.Context
-	Game     *engine.Game
-	Nodes    *atomic.Int64 // Shared node counter
-	SelDepth *int          // Thread-local max depth
-	Rand     *rand.Rand    // Thread-local random number generator (nil for main thread)
+	Ctx         context.Context
+	Game        *engine.Game
+	Nodes       *atomic.Int64           // Shared node counter
+	SelDepth    *int                    // Thread-local max depth
+	Rand        *rand.Rand              // Thread-local random number generator (nil for main thread)
+	KillerMoves *[MaxPly][2]engine.Move // Thread-local killer moves table
+}
+
+func NewSearchContext(game *engine.Game) *SearchContext {
+	return &SearchContext{
+		Ctx:         context.Background(),
+		Game:        game,
+		Nodes:       &atomic.Int64{},
+		SelDepth:    new(int),
+		Rand:        nil,
+		KillerMoves: &[MaxPly][2]engine.Move{},
+	}
 }
 
 // Search finds the best move for the current position.
@@ -86,12 +101,14 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 			// Create thread-local RNG seeded with ID and time
 			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(threadId)))
 
+			killers := [MaxPly][2]engine.Move{}
 			sc := &SearchContext{
-				Ctx:      ctx,
-				Game:     gameClone,
-				Nodes:    &totalNodes,
-				SelDepth: &helperSelDepth,
-				Rand:     rng,
+				Ctx:         ctx,
+				Game:        gameClone,
+				Nodes:       &totalNodes,
+				SelDepth:    &helperSelDepth,
+				Rand:        rng,
+				KillerMoves: &killers,
 			}
 
 			// Helpers run Iterative Deepening to populate TT.
@@ -105,15 +122,17 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 	}
 
 	// Iterative Deepening
+	mainKillers := [MaxPly][2]engine.Move{}
 	for depth := 1; depth <= options.MaxDepth; depth++ {
 		var selDepth int
 
 		sc := &SearchContext{
-			Ctx:      ctx,
-			Game:     game,
-			Nodes:    &totalNodes,
-			SelDepth: &selDepth,
-			Rand:     nil, // Main thread is deterministic
+			Ctx:         ctx,
+			Game:        game,
+			Nodes:       &totalNodes,
+			SelDepth:    &selDepth,
+			Rand:        nil, // Main thread is deterministic
+			KillerMoves: &mainKillers,
 		}
 
 		// The main thread performs the iterative deepening search.

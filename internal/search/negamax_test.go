@@ -2,7 +2,6 @@ package search
 
 import (
 	"arminia-chess-engine/internal/engine"
-	"context"
 	"sync/atomic"
 	"testing"
 
@@ -25,13 +24,8 @@ func TestNegamax_FindsMateInOne(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Search should find the mate
-	sc := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &atomic.Int64{},
-		SelDepth: new(int),
-	}
-	score, move, _ := negamax(sc, 2, -EvalInfinity, EvalInfinity, 0, 0, true)
+
+	score, move, _ := negamax(NewSearchContext(game), 2, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// Expected move: Qd6-e6#
 	assert.Equal(t, "d6e6", move.String(), "Should find mate d6e6")
@@ -44,14 +38,7 @@ func TestNegamax_FindsMateInOneBlack(t *testing.T) {
 	fen := "K7/2k5/8/8/8/8/8/1r6 b - - 0 1"
 	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
-
-	sc := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &atomic.Int64{},
-		SelDepth: new(int),
-	}
-	score, move, _ := negamax(sc, 2, -EvalInfinity, EvalInfinity, 0, 0, true)
+	score, move, _ := negamax(NewSearchContext(game), 2, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// Expected move: Rb1-a1#
 	assert.Equal(t, "b1a1", move.String(), "Should find mate b1a1")
@@ -63,14 +50,7 @@ func TestNegamax_FindsMateInTwo(t *testing.T) {
 	fen := "rn2kb2/ppp2p1Q/6pn/3p4/4q1b1/3P4/PPPK1PPP/RNB2BNR b q - 2 8"
 	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
-
-	sc := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &atomic.Int64{},
-		SelDepth: new(int),
-	}
-	score, move, _ := negamax(sc, 4, -EvalInfinity, EvalInfinity, 0, 0, true)
+	score, move, _ := negamax(NewSearchContext(game), 4, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// Expected move: Qf4+, followed by Qxc1#
 	assert.Equal(t, "e4f4", move.String(), "Should find mate in 2")
@@ -82,14 +62,7 @@ func TestNegamax_FindsMateInThreeWithEnPassant(t *testing.T) {
 	fen := "rn3k1r/pp2p2p/3pQ1pn/1BpP2N1/5P2/3K4/P1PB2qP/8 w - - 2 17"
 	game, err := engine.NewGameFromFEN(fen)
 	assert.NoError(t, err)
-
-	sc := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &atomic.Int64{},
-		SelDepth: new(int),
-	}
-	score, move, _ := negamax(sc, 6, -EvalInfinity, EvalInfinity, 0, 0, true)
+	score, move, _ := negamax(NewSearchContext(game), 6, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// Expected move: e6c8
 	assert.Equal(t, "e6c8", move.String(), "Should find mate in 3 with en passant")
@@ -111,23 +84,15 @@ func TestNegamax_TTIntegration_ReducesNodeCount(t *testing.T) {
 	// 1. First Search (Cold TT)
 	depth := 4
 	nodes1 := atomic.Int64{}
-	sc1 := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &nodes1,
-		SelDepth: new(int),
-	}
+	sc1 := NewSearchContext(game)
+	sc1.Nodes = &nodes1
 	score1, move1, _ := negamax(sc1, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// 2. Second Search (Warm TT)
 	// We expect the search to find the entry in the TT and return immediately or prune heavily
 	nodes2 := atomic.Int64{}
-	sc2 := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &nodes2,
-		SelDepth: new(int),
-	}
+	sc2 := NewSearchContext(game)
+	sc2.Nodes = &nodes2
 	score2, move2, _ := negamax(sc2, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// Assertions
@@ -172,14 +137,8 @@ func TestNegamax_DetectsDrawByRepetition(t *testing.T) {
 
 	assert.True(t, game.CanClaimDrawByThreefoldRepetition(), "Game state should recognize the 3-fold repetition")
 
-	sc := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &atomic.Int64{},
-		SelDepth: new(int),
-	}
 	// Call negamax with ply=1 to trigger draw detection
-	score, _, _ := negamax(sc, 2, -EvalInfinity, EvalInfinity, 1, 0, true)
+	score, _, _ := negamax(NewSearchContext(game), 2, -EvalInfinity, EvalInfinity, 1, 0, true)
 
 	assert.Equal(t, 0, score, "Negamax should return a score of 0 for a draw by repetition, despite material advantage")
 }
@@ -195,12 +154,8 @@ func TestNegamax_CheckExtension(t *testing.T) {
 	assert.True(t, game.Board.IsKingInCheck(engine.White), "White King should be in check")
 
 	selDepth := 0
-	sc := &SearchContext{
-		Ctx:      context.Background(),
-		Game:     game,
-		Nodes:    &atomic.Int64{},
-		SelDepth: &selDepth,
-	}
+	sc := NewSearchContext(game)
+	sc.SelDepth = &selDepth
 
 	// Search with depth 1.
 	// If check extension works, it should search to depth 1+1 = 2.

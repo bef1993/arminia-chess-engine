@@ -100,6 +100,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
 - **Check Extensions**: Extending search depth when the king is in check to improve tactical accuracy (up to 3 times).
 - **Null-Move Pruning**: Pruning subtrees where the opponent cannot improve their position even if we pass the turn (R=2 or R=3).
+- **Killer Moves**: Killer Moves are quiet moves that caused a beta-cutoff in a different branch at the same search depth, prioritized during move ordering to trigger earlier cutoffs in similar positions. By storing and probing these specific moves before other quiet moves, the engine significantly improves alpha-beta pruning efficiency
 
 ### Evaluation
 
@@ -118,9 +119,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - [ ] Move ordering for quiet moves
 - [ ] Opening Books
 - [ ] Endgame Tablebases
-- [ ] Killer Moves
 - [ ] History Heuristic
-- [ ] General evaluation improvements
 
 ## License
 

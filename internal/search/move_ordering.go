@@ -31,7 +31,7 @@ func (s *moveSorter) Less(i, j int) bool { return s.scores[i] > s.scores[j] }
 //   - Queen promotion: 1,009,000.
 //
 // 4. Quiet Moves: 0 (or small random value if randomization is enabled)
-func orderMoves(sc *SearchContext, moves []engine.Move, ttMove engine.Move) {
+func orderMoves(sc *SearchContext, moves []engine.Move, ttMove engine.Move, ply int) {
 	scores := make([]int, len(moves))
 	game := sc.Game
 
@@ -66,6 +66,15 @@ func orderMoves(sc *SearchContext, moves []engine.Move, ttMove engine.Move) {
 			score += 1000000 + pieceValue(move.PromotionPiece.Type())*10
 		}
 
+		// Killer Moves (only for quiet moves)
+		if score == 0 && ply < MaxPly {
+			if sc.KillerMoves[ply][0] == move {
+				score = 900000
+			} else if sc.KillerMoves[ply][1] == move {
+				score = 800000
+			}
+		}
+
 		// Lazy SMP Randomness / Divergence
 		// If a random generator is provided (helper threads), add small noise to ALL moves
 		// to encourage exploring different branches, even among captures.
@@ -78,4 +87,14 @@ func orderMoves(sc *SearchContext, moves []engine.Move, ttMove engine.Move) {
 
 	// Sort moves based on scores (descending)
 	sort.Sort(&moveSorter{moves: moves, scores: scores})
+}
+
+// storeKiller adds a move to the killer moves table for the given ply
+func storeKiller(sc *SearchContext, ply int, move engine.Move) {
+	if ply >= MaxPly || sc.KillerMoves[ply][0] == move {
+		return
+	}
+	// Shift: Old 1st killer becomes 2nd killer, new move becomes 1st killer
+	sc.KillerMoves[ply][1] = sc.KillerMoves[ply][0]
+	sc.KillerMoves[ply][0] = move
 }
