@@ -237,6 +237,11 @@ func (u *Protocol) applyMoves(moveStrings []string) error {
 			slog.Error("Illegal move", "move", moveStr, "error", err)
 			return u.writeLine(fmt.Sprintf("info string Illegal move: %v", err))
 		}
+
+		if err := u.game.ValidateMove(move); err != nil {
+			slog.Error("Illegal move", "move", moveStr, "error", err)
+			return u.writeLine(fmt.Sprintf("info string Illegal move: %v", err))
+		}
 		u.game.ExecuteMove(move)
 	}
 	return nil

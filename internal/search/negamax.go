@@ -18,27 +18,19 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 		*sc.SelDepth = ply
 	}
 
-	// Check for timeout every 2048 nodes
-	if (sc.Nodes.Load() & 2047) == 0 {
-		if sc.Ctx.Err() != nil {
-			return 0, engine.Move{}, true
-		}
+	if shouldStop(sc) {
+		return 0, engine.Move{}, true
 	}
-	sc.Nodes.Add(1)
 
-	// --- Draw Detection ---
-	// We do not want to store repetion draws in the TT because the draw depends on how the position was reached
-	// Since we check this before probing the TT, we can avoid storing these positions in the TT and just return a score of 0 immediately.
-	// If we are at the root node, we want to search the position anyway to report stats, so we only return 0 for draw positions at ply > 0.
-	// Altough a game is only a draw after 3 repetitions, we return 0 after the 2nd repetition to avoid searching further into a known draw position. This is a common approach in chess engines to save time on known draw positions.
-	if ply > 0 && (game.IsDrawByFiftyMoveRule() || game.GetRepetitionCount() >= 2 || game.IsInsufficientMaterial()) {
+	// Draw Detection
+	if isDraw(game, ply) {
 		return 0, engine.Move{}, false
 	}
 
 	alphaOrig := alpha
 	var ttMove engine.Move
 
-	// 1. Transposition Table Lookup
+	// Transposition Table Lookup
 	if entry, ok := GlobalTT.Probe(game.ZobristHash); ok {
 		ttMove = entry.BestMove
 		// Don't cut off at the root (ply 0) to ensure we search and report stats
@@ -64,8 +56,7 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	}
 
 	// Check Extensions
-	// If the side to move is in check, we extend the search depth by 1 to find a defense or mate.
-	// We limit the number of extensions for performance reasons
+	// If the side to move is in check, we extend the search depth by 1 (maximum 3 extensions)
 	inCheck := game.Board.IsKingInCheck(game.CurrentTurn)
 	if inCheck && extensions < 3 {
 		depth++
@@ -73,38 +64,14 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	}
 
 	// Null Move Pruning
-	// We prune if making a null move (passing) still results in a score >= beta.
-	// Conditions:
-	// 1. Not in check (null move while in check is illegal).
-	// 2. Depth is sufficient (>= 3).
-	// 3. Not at root (ply > 0).
-	// 4. Side to move has non-pawn material (avoid Zugzwang).
-	// 5. Null move is allowed (allowNull flag).
-	if allowNull && depth >= 3 && !inCheck && ply > 0 && game.Board.HasNonPawnMaterial(game.CurrentTurn) {
-		game.ExecuteNullMove()
-
-		// Adaptive Null Move Pruning
-		// R = 2 for depth <= 6, R = 3 for depth > 6
-		reduction := 2
-		if depth > 6 {
-			reduction = 3
-		}
-
-		// We pass -beta, -beta+1 (Null Window) to verify if score >= beta.
-		// We pass allowNull=false to prevent consecutive null moves.
-		score, _, interrupted := negamax(sc, depth-1-reduction, -beta, -beta+1, ply+1, extensions, false)
-		game.UnmakeMove()
-		score = -score
-
+	if score, cutoff, interrupted := nullMovePruning(sc, depth, beta, ply, extensions, allowNull, inCheck); cutoff || interrupted {
 		if interrupted {
 			return 0, engine.Move{}, true
 		}
-
-		if score >= beta {
-			return beta, engine.Move{}, false // Cutoff
-		}
+		return score, engine.Move{}, false
 	}
 
+	// Final depth reached: Call Quiescence Search to resolve captures before final evaluation
 	if depth == 0 {
 		score, interrupted := quiescence(sc, alpha, beta, ply)
 		return score, engine.Move{}, interrupted
@@ -112,18 +79,14 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 
 	moves := sc.Game.GenerateLegalMoves()
 
+	// No legal moves: Checkmate or Stalemate
 	if len(moves) == 0 {
 		score := 0
 		if inCheck {
-			// Checkmate: return a very low score, adjusted by ply to prefer faster mates
-			score = -EvalMate + ply
+			score = -EvalMate + ply // Prefer faster mates by adjusting the score based on ply
 		}
-		// Stalemate score is 0
-
-		// Store in TT (Exact score, no move)
 		ttScore := scoreToTT(score, ply)
 		GlobalTT.Store(game.ZobristHash, depth, ttScore, FlagExact, engine.Move{})
-
 		return score, engine.Move{}, false
 	}
 
@@ -151,30 +114,12 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 			alpha = score
 		}
 		if alpha >= beta {
-			// Killer Moves - Beta Cutoff
-			// If this is a quiet move, store it as a Killer Move
-			// We need to check if it was a capture.
-			// Since we already unmade the move, we check the board state (which is restored).
-			// Note: We need to check the move properties relative to the state BEFORE execution.
-			// Since we unmade the move, 'game.Board' is back to the pre-move state.
-			target := game.Board.GetPiece(move.To)
-			isCapture := target != engine.NoPiece
-			if !isCapture {
-				// Check En Passant (Pawn move to EP target)
-				piece := game.Board.GetPiece(move.From)
-				if piece.Type() == engine.Pawn && move.To == game.EnPassantTarget && (move.To%8 != move.From%8) {
-					isCapture = true
-				}
-			}
-
-			if !isCapture {
-				storeKiller(sc, ply, move)
-			}
+			updateKillerMoves(sc, game, move, ply)
 			break // Beta cutoff
 		}
 	}
 
-	// 2. Store in Transposition Table
+	// Store result in Transposition Table
 	var flag TTFlag
 	if bestScore <= alphaOrig {
 		flag = FlagUpperBound
@@ -188,4 +133,68 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	GlobalTT.Store(game.ZobristHash, depth, ttScore, flag, bestMove)
 
 	return bestScore, bestMove, false
+}
+
+// updateKillerMoves checks if a beta-cutoff move is quiet and stores it as a killer move.
+func updateKillerMoves(sc *SearchContext, game *engine.Game, move engine.Move, ply int) {
+	// We need to check if it was a capture.
+	// Since we already unmade the move, we check the board state (which is restored).
+	target := game.Board.GetPiece(move.To)
+	isCapture := target != engine.NoPiece
+	if !isCapture {
+		// Check En Passant (Pawn move to EP target)
+		piece := game.Board.GetPiece(move.From)
+		if piece.Type() == engine.Pawn && move.To == game.EnPassantTarget && (move.To%8 != move.From%8) {
+			isCapture = true
+		}
+	}
+
+	if !isCapture {
+		storeKiller(sc, ply, move)
+	}
+}
+
+// shouldStop checks if the search should be interrupted due to timeout or cancellation.
+func shouldStop(sc *SearchContext) bool {
+	// Check for timeout every 2048 nodes
+	if (sc.Nodes.Load() & 2047) == 0 {
+		if sc.Ctx.Err() != nil {
+			return true
+		}
+	}
+	sc.Nodes.Add(1)
+	return false
+}
+
+// isDraw checks for immediate draw conditions (repetition, 50-move, insufficient material).
+func isDraw(game *engine.Game, ply int) bool {
+	// We do not want to store repetition draws in the TT because the draw depends on how the position was reached
+	// Since we check this before probing the TT, we can avoid storing these positions in the TT and just return a score of 0 immediately.
+	// If we are at the root node, we want to search the position anyway to report stats, so we only return 0 for draw positions at ply > 0.
+	// Already consider 2 repetitions a draw
+	return ply > 0 && (game.IsDrawByFiftyMoveRule() || game.GetRepetitionCount() >= 2 || game.IsInsufficientMaterial())
+}
+
+// nullMovePruning attempts to prune the search early by making a "null move"
+// Returns score, cutoff (true if pruned), interrupted.
+func nullMovePruning(sc *SearchContext, depth, beta, ply, extensions int, allowNull, inCheck bool) (int, bool, bool) {
+	game := sc.Game
+	// Conditions:
+	// 1. Not in check (null move while in check is illegal).
+	// 2. Depth is sufficient (>= 3).
+	// 3. Not at root (ply > 0).
+	// 4. Side to move has non-pawn material (avoid Zugzwang).
+	// 5. Null move is allowed (allowNull flag).
+	if allowNull && depth >= 3 && !inCheck && ply > 0 && game.Board.HasNonPawnMaterial(game.CurrentTurn) {
+		game.ExecuteNullMove()
+		reduction := 2
+		if depth > 6 {
+			reduction = 3
+		}
+		score, _, interrupted := negamax(sc, depth-1-reduction, -beta, -beta+1, ply+1, extensions, false)
+		game.UnmakeMove()
+		score = -score
+		return score, score >= beta, interrupted
+	}
+	return 0, false, false
 }

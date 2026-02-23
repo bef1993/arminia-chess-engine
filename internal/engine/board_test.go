@@ -352,3 +352,81 @@ func TestIsKingInCheck(t *testing.T) {
 		})
 	}
 }
+
+func TestIsInsufficientMaterial(t *testing.T) {
+	tests := []struct {
+		name     string
+		setupFn  func(*Board)
+		expected bool
+	}{
+		{
+			name: "King vs King",
+			setupFn: func(b *Board) {
+				b.Clear()
+				b.SetPieceAt("e1", WhiteKing)
+				b.SetPieceAt("e8", BlackKing)
+			},
+			expected: true,
+		},
+		{
+			name: "King + Knight vs King",
+			setupFn: func(b *Board) {
+				b.Clear()
+				b.SetPieceAt("e1", WhiteKing)
+				b.SetPieceAt("e8", BlackKing)
+				b.SetPieceAt("d4", WhiteKnight)
+			},
+			expected: true,
+		},
+		{
+			name: "King vs King + Knight",
+			setupFn: func(b *Board) {
+				b.Clear()
+				b.SetPieceAt("e1", WhiteKing)
+				b.SetPieceAt("e8", BlackKing)
+				b.SetPieceAt("d4", BlackKnight)
+			},
+			expected: true,
+		},
+		{
+			name: "King + Bishop vs King",
+			setupFn: func(b *Board) {
+				b.Clear()
+				b.SetPieceAt("e1", WhiteKing)
+				b.SetPieceAt("e8", BlackKing)
+				b.SetPieceAt("c1", WhiteBishop)
+			},
+			expected: true,
+		},
+		{
+			name: "King + Bishop vs King + Bishop (same color)",
+			setupFn: func(b *Board) {
+				b.Clear()
+				b.SetPieceAt("e1", WhiteKing)
+				b.SetPieceAt("e8", BlackKing)
+				b.SetPieceAt("c1", WhiteBishop) // Light square (file 2, rank 0) -> (2+0)%2 = 0
+				b.SetPieceAt("f8", BlackBishop) // Light square (file 5, rank 7) -> (5+7)%2 = 0
+			},
+			expected: true,
+		},
+		{
+			name: "King + Bishop vs King + Bishop (different color)",
+			setupFn: func(b *Board) {
+				b.Clear()
+				b.SetPieceAt("e1", WhiteKing)
+				b.SetPieceAt("e8", BlackKing)
+				b.SetPieceAt("c1", WhiteBishop) // Light square
+				b.SetPieceAt("c8", BlackBishop) // Dark square
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := NewBoard()
+			tt.setupFn(&board)
+			assert.Equal(t, tt.expected, board.IsInsufficientMaterial())
+		})
+	}
+}

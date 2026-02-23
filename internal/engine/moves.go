@@ -57,8 +57,8 @@ func (m Move) String() string {
 }
 
 // ParseMove parses a UCI move string (e.g., "e2e4", "a7a8q") into a Move struct.
-// It validates the move against the current game state (legal moves).
-func ParseMove(moveStr string, game *Game) (Move, error) { // TODO remove Validation from ParseMove
+// It does NOT validate if the move is legal in the current position, only that it is well-formed.
+func ParseMove(moveStr string, game *Game) (Move, error) {
 	if len(moveStr) < 4 {
 		return Move{}, fmt.Errorf("invalid move format: %s", moveStr)
 	}
@@ -85,11 +85,6 @@ func ParseMove(moveStr string, game *Game) (Move, error) { // TODO remove Valida
 		default:
 			return Move{}, fmt.Errorf("invalid promotion piece: %c", moveStr[4])
 		}
-	}
-
-	err := game.ValidateMove(move)
-	if err != nil {
-		return Move{}, err
 	}
 
 	return move, nil

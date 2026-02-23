@@ -355,3 +355,54 @@ func (b *Board) RemovePieceAt(sq string) {
 func (b *Board) GetPieceAt(sq string) Piece {
 	return b.GetPiece(Sq(sq))
 }
+
+// IsInsufficientMaterial checks if there are enough pieces to force a checkmate
+func (b *Board) IsInsufficientMaterial() bool {
+	// Fast check: If there are any Pawns, Rooks, or Queens, it's not insufficient material.
+	// We can check all at once using bitwise OR.
+	heavyPieces := b.Pieces[White][Pawn] | b.Pieces[White][Rook] | b.Pieces[White][Queen] |
+		b.Pieces[Black][Pawn] | b.Pieces[Black][Rook] | b.Pieces[Black][Queen]
+
+	if heavyPieces != 0 {
+		return false
+	}
+
+	// Count minor pieces using Population Count (very fast)
+	whiteKnights := b.Pieces[White][Knight].Count()
+	blackKnights := b.Pieces[Black][Knight].Count()
+	whiteBishops := b.Pieces[White][Bishop].Count()
+	blackBishops := b.Pieces[Black][Bishop].Count()
+
+	whiteMinors := whiteKnights + whiteBishops
+	blackMinors := blackKnights + blackBishops
+	totalMinors := whiteMinors + blackMinors
+
+	// King vs King (No minors)
+	if totalMinors == 0 {
+		return true
+	}
+
+	// King + Knight vs King OR King + Bishop vs King
+	// (Exactly one minor piece on the board)
+	if totalMinors == 1 {
+		return true
+	}
+
+	// King + Bishop vs King + Bishop (same color squares)
+	if whiteBishops == 1 && blackBishops == 1 && whiteKnights == 0 && blackKnights == 0 {
+		// Get the square of the white bishop
+		wbBB := b.Pieces[White][Bishop]
+		wbSq := wbBB.PopLSB() // Safe because we know count is 1
+
+		// Get the square of the black bishop
+		bbBB := b.Pieces[Black][Bishop]
+		bbSq := bbBB.PopLSB()
+
+		wbColor := (GetRank(wbSq) + GetFile(wbSq)) % 2
+		bbColor := (GetRank(bbSq) + GetFile(bbSq)) % 2
+
+		return wbColor == bbColor
+	}
+
+	return false
+}

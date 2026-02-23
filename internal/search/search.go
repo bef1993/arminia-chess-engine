@@ -76,36 +76,39 @@ func NewSearchContext(game *engine.Game) *SearchContext {
 // Returns the best move, the score, and the number of nodes visited.
 // infoCh is a channel to report search progress (can be nil).
 func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoCh chan<- SearchInfo) (engine.Move, int, int64) {
-	var bestMove engine.Move
-	var score int
 	totalNodes := atomic.Int64{}
+	var wg sync.WaitGroup
 
-	bestMove = InitializeBestMoveFallback(game)
+	// Spawn helper threads for Lazy SMP to populate the TT
+	runLazySMPHelpers(ctx, &wg, game, options, &totalNodes)
 
-	// Configure threads
+	// Run the main iterative deepening search
+	bestMove, score := runIterativeDeepening(ctx, game, options, &totalNodes, infoCh)
+
+	// Wait for helper threads to finish
+	wg.Wait()
+
+	return bestMove, score, totalNodes.Load()
+}
+
+// runLazySMPHelpers spawns helper threads to populate the TT.
+func runLazySMPHelpers(ctx context.Context, wg *sync.WaitGroup, game *engine.Game, options SearchOptions, totalNodes *atomic.Int64) {
 	numThreads := options.Threads
 	if numThreads < 1 {
 		numThreads = 1
 	}
 
-	var wg sync.WaitGroup
-
-	// Spawn helper threads (Lazy SMP)
-	// Helpers search the same position to populate the TT.
 	for i := 1; i < numThreads; i++ {
 		threadId := i
 		gameClone := game.Clone()
 		wg.Go(func() {
 			var helperSelDepth int
-
-			// Create thread-local RNG seeded with ID and time
 			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(threadId)))
-
 			killers := [MaxPly][2]engine.Move{}
 			sc := &SearchContext{
 				Ctx:         ctx,
 				Game:        gameClone,
-				Nodes:       &totalNodes,
+				Nodes:       totalNodes,
 				SelDepth:    &helperSelDepth,
 				Rand:        rng,
 				KillerMoves: &killers,
@@ -120,23 +123,27 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 			}
 		})
 	}
+}
 
-	// Iterative Deepening
+// runIterativeDeepening performs the main search loop.
+func runIterativeDeepening(ctx context.Context, game *engine.Game, options SearchOptions, totalNodes *atomic.Int64, infoCh chan<- SearchInfo) (engine.Move, int) {
+	var bestMove engine.Move
+	var score int
+
+	bestMove = InitializeBestMoveFallback(game)
+
 	mainKillers := [MaxPly][2]engine.Move{}
 	for depth := 1; depth <= options.MaxDepth; depth++ {
 		var selDepth int
-
 		sc := &SearchContext{
 			Ctx:         ctx,
 			Game:        game,
-			Nodes:       &totalNodes,
+			Nodes:       totalNodes,
 			SelDepth:    &selDepth,
 			Rand:        nil, // Main thread is deterministic
 			KillerMoves: &mainKillers,
 		}
 
-		// The main thread performs the iterative deepening search.
-		// It shares the totalNodes counter and the TT with the helper threads.
 		eval, move, interrupted := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 		if interrupted {
@@ -163,33 +170,16 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 			break
 		}
 	}
-
-	// Wait for helper threads to finish
-	wg.Wait()
-	return bestMove, score, totalNodes.Load()
+	return bestMove, score
 }
 
 func InitializeBestMoveFallback(game *engine.Game) (bestMove engine.Move) {
+	// In case the search is interrupted before depth 1 completes, we need a fallback move.
+	// We simply take the first legal move available. This ensures we always return a valid
+	// move, preventing a forfeit in time-critical situations.
 	legalMoves := game.GenerateLegalMoves()
-	// Initialize bestMove with a fallback in case the search is interrupted before depth 1 completes.
-	// 1. Try to retrieve a move from the Transposition Table (e.g. from previous search)
-	if entry, ok := GlobalTT.Probe(game.ZobristHash); ok && entry.BestMove != (engine.Move{}) {
-		// Validate TT move to ensure it's legal (guards against hash collisions)
-		for _, m := range legalMoves {
-			if m == entry.BestMove {
-				bestMove = entry.BestMove
-				break
-			}
-		}
-	}
-
-	// 2. If no TT move, use the first legal move
-	// in case the search is interrupted before depth 1 completes.
-
-	if bestMove == (engine.Move{}) {
-		if len(legalMoves) > 0 {
-			bestMove = legalMoves[0]
-		}
+	if len(legalMoves) > 0 {
+		bestMove = legalMoves[0]
 	}
 	return bestMove
 }

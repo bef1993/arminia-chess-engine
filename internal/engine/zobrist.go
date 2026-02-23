@@ -6,7 +6,7 @@ import (
 
 // Zobrist keys
 var (
-	zobristPiece     [2][8][64]uint64 // [Color][PieceType][Square] - Size 8 to accommodate PieceType values safely // TODO why 8, not 7?
+	zobristPiece     [2][6][64]uint64 // [Color][PieceType][Square]
 	zobristCastling  [16]uint64       // [CastlingRights]
 	zobristEnPassant [9]uint64        // [File] (8 for none)
 	zobristBlackTurn uint64           // XORed if it's Black's turn
@@ -18,7 +18,7 @@ func init() {
 
 	// Initialize piece keys
 	for color := 0; color < 2; color++ {
-		for piece := 0; piece < 8; piece++ {
+		for piece := 0; piece < 6; piece++ {
 			for sq := 0; sq < 64; sq++ {
 				zobristPiece[color][piece][sq] = rng.Uint64()
 			}

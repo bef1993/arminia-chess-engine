@@ -87,6 +87,10 @@ func handleMove(game *engine.Game, moveStr string) error {
 		return err
 	}
 
+	if err := game.ValidateMove(move); err != nil {
+		return err
+	}
+
 	game.ExecuteMove(move)
 	return nil
 }
