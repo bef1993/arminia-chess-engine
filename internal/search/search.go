@@ -58,6 +58,7 @@ type SearchContext struct {
 	SelDepth    *int                    // Thread-local max depth
 	Rand        *rand.Rand              // Thread-local random number generator (nil for main thread)
 	KillerMoves *[MaxPly][2]engine.Move // Thread-local killer moves table
+	History     *HistoryTable           // Shared history heuristic table
 }
 
 func NewSearchContext(game *engine.Game) *SearchContext {
@@ -68,6 +69,7 @@ func NewSearchContext(game *engine.Game) *SearchContext {
 		SelDepth:    new(int),
 		Rand:        nil,
 		KillerMoves: &[MaxPly][2]engine.Move{},
+		History:     &HistoryTable{},
 	}
 }
 
@@ -105,6 +107,7 @@ func runLazySMPHelpers(ctx context.Context, wg *sync.WaitGroup, game *engine.Gam
 			var helperSelDepth int
 			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(threadId)))
 			killerMoves := [MaxPly][2]engine.Move{}
+			history := HistoryTable{}
 			sc := &SearchContext{
 				Ctx:         ctx,
 				Game:        gameClone,
@@ -112,6 +115,7 @@ func runLazySMPHelpers(ctx context.Context, wg *sync.WaitGroup, game *engine.Gam
 				SelDepth:    &helperSelDepth,
 				Rand:        rng,
 				KillerMoves: &killerMoves,
+				History:     &history,
 			}
 
 			// Helpers run Iterative Deepening to populate TT.
@@ -135,6 +139,7 @@ func runIterativeDeepening(ctx context.Context, game *engine.Game, options Searc
 	// Killer moves are maintained across iterative deepening depths to improve move ordering.
 	// They are not reset after each depth iteration.
 	killerMoves := [MaxPly][2]engine.Move{}
+	history := HistoryTable{}
 	for depth := 1; depth <= options.MaxDepth; depth++ {
 		var selDepth int
 		sc := &SearchContext{
@@ -144,6 +149,7 @@ func runIterativeDeepening(ctx context.Context, game *engine.Game, options Searc
 			SelDepth:    &selDepth,
 			Rand:        nil, // Main thread is deterministic
 			KillerMoves: &killerMoves,
+			History:     &history,
 		}
 
 		eval, move, interrupted := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0, 0, true)

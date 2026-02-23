@@ -99,10 +99,14 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - **Iterative Deepening**: Searching to increasing depths to ensure the best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Lazy SMP**: Parallel search using helper threads to populate the lockless transposition table.
-- **Move Ordering (Captures)**: MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) heuristic to prioritize captures. Quiet move ordering is still pending.
 - **Check Extensions**: Extending search depth when the king is in check to improve tactical accuracy (up to 3 times).
 - **Null-Move Pruning**: Pruning subtrees where the opponent cannot improve their position even if we pass the turn (R=2 or R=3).
+
+### Move Ordering
+
+- **MVV-LVA**: Most Valuable Victim - Least Valuable Aggressor heuristic to prioritize captures.
 - **Killer Moves**: Killer Moves are quiet moves that caused a beta-cutoff in a different branch at the same search depth, prioritized during move ordering to trigger earlier cutoffs in similar positions. By storing and probing these specific moves before other quiet moves, the engine significantly improves alpha-beta pruning efficiency
+- **History Heuristic**: Improves quiet move ordering by tracking which moves have historically caused beta-cutoffs. Moves that have been successful in other branches of the search tree are given a higher score and searched earlier, making LMR more effective and pruning more efficient.
 
 ### Evaluation
 
@@ -116,12 +120,12 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 
 ## Next Steps
 
-**Future Improvements (Phase 6):**
-
-- [ ] Move ordering for quiet moves
-- [ ] Opening Books
-- [ ] Endgame Tablebases
-- [ ] History Heuristic
+- Opening Books
+- Endgame Tablebases
+- Tapered Evaluation
+- QS: Stand-Pat-Prüfung
+- QS: Delta Pruning
+- QS: SEE (Static Exchange Evaluation)
 
 ## License
 

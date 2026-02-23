@@ -168,7 +168,7 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 			// Beta Cutoff (Fail-High):
 			// The opponent has a better alternative at the previous node that prevents
 			// us from reaching this position. We stop searching this branch.
-			updateKillerMoves(sc, game, move, ply)
+			updateQuietMoveHeuristics(sc, game, move, ply, depth)
 			break
 		}
 	}
@@ -189,11 +189,13 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	return bestScore, bestMove, false
 }
 
-// updateKillerMoves checks if a beta-cutoff move is quiet and stores it as a killer move.
-func updateKillerMoves(sc *SearchContext, game *engine.Game, move engine.Move, ply int) {
-	// Killer moves are quiet moves that cause a beta-cutoff.
+// updateQuietMoveHeuristics updates Killer Moves and History Heuristic for quiet moves that cause a cutoff.
+func updateQuietMoveHeuristics(sc *SearchContext, game *engine.Game, move engine.Move, ply, depth int) {
 	if !game.IsNoisyMove(move) {
+		// Store as a killer move
 		storeKiller(sc, ply, move)
+		// Update history score
+		sc.History.Add(move, depth, game.CurrentTurn)
 	}
 }
 

@@ -77,7 +77,8 @@ Move generation is **pseudo-legal** followed by **legality filtering**.
   1. Hash Move (from TT)
   2. Captures (MVV-LVA)
   3. Promotions
-  4. Quiet Moves
+  4. Killer Moves
+  5. Quiet Moves (History Heuristic)
 - **Evaluation**: Material balance + Piece-Square Tables (PST) for positional understanding.
 
 ## Development Status
@@ -96,8 +97,8 @@ Move generation is **pseudo-legal** followed by **legality filtering**.
 The engine is functional and strong (estimated ~1800+ Elo). The next phase focuses on advanced optimizations:
 
 1. **Tapered Evaluation**: Interpolate between Middlegame and Endgame PSTs based on game phase.
-2. **Killer Moves**: Store quiet moves that caused cutoffs at specific ply depths to prioritize them.
-3. **History Heuristic**: Score quiet moves based on their historical success to improve ordering.
+2. **Opening Books**: Integrate Polyglot or custom opening book.
+3. **Quiescence Search Optimizations**: Implement Delta Pruning and Static Exchange Evaluation (SEE).
 4. **Endgame Tablebases**: Integrate Syzygy tablebases for perfect endgame play.
 
 ## Testing
