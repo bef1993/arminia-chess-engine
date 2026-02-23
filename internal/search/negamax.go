@@ -16,6 +16,10 @@ import (
 //     implying the opponent would have avoided this branch earlier. This triggers a "Beta Cutoff" (pruning).
 //   - If a move results in a score > alpha, it means we found a better move than before. We update alpha.
 //
+// This implementation also includes:
+// - Principal Variation Search (PVS): Assumes the first move is best and searches others with a null window.
+// - Late Move Reductions (LMR): Reduces search depth for quiet moves late in the move order.
+//
 // Parameters:
 // - sc: Search context (context, game, stats, rng, killerMoves).
 // - depth: Remaining search depth.
@@ -86,7 +90,7 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	}
 
 	// Final depth reached: Call Quiescence Search to resolve captures before final evaluation
-	if depth == 0 {
+	if depth <= 0 {
 		score, interrupted := quiescence(sc, alpha, beta, ply)
 		return score, engine.Move{}, interrupted
 	}
@@ -110,14 +114,45 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	bestScore := -EvalInfinity
 	var bestMove engine.Move
 
-	for _, move := range moves {
+	for i, move := range moves {
+		isNoisy := game.IsNoisyMove(move)
+
 		game.ExecuteMove(move)
-		score, _, interrupted := negamax(sc, depth-1, -beta, -alpha, ply+1, extensions, true)
+		givesCheck := game.Board.IsKingInCheck(game.CurrentTurn)
+
+		var score int
+		var interrupted bool
+
+		if i == 0 {
+			// Principal Variation (PV) node: Full window search for the first move
+			score, _, interrupted = negamax(sc, depth-1, -beta, -alpha, ply+1, extensions, true)
+			score = -score
+		} else {
+			// Principal Variation Search (PVS) with Late Move Reductions (LMR)
+			reduction := calculateLMR(depth, i, inCheck, isNoisy, givesCheck)
+
+			// Perform search (possibly reduced)
+			// If reduction > 0, we do a reduced search first.
+			score, _, interrupted = negamax(sc, depth-1-reduction, -alpha-1, -alpha, ply+1, extensions, true)
+			score = -score
+
+			// If the reduced search fails high (score > alpha), we must verify at full depth
+			if score > alpha && reduction > 0 && !interrupted {
+				score, _, interrupted = negamax(sc, depth-1, -alpha-1, -alpha, ply+1, extensions, true)
+				score = -score
+			}
+
+			// If the move turns out to be better than alpha (but within bounds), re-search with full window
+			if score > alpha && score < beta && !interrupted {
+				score, _, interrupted = negamax(sc, depth-1, -beta, -alpha, ply+1, extensions, true)
+				score = -score
+			}
+		}
+
 		if interrupted {
 			game.UnmakeMove()
 			return 0, engine.Move{}, true
 		}
-		score = -score
 		game.UnmakeMove()
 
 		if score > bestScore {
@@ -156,21 +191,31 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 
 // updateKillerMoves checks if a beta-cutoff move is quiet and stores it as a killer move.
 func updateKillerMoves(sc *SearchContext, game *engine.Game, move engine.Move, ply int) {
-	// We need to check if it was a capture.
-	// Since we already unmade the move, we check the board state (which is restored).
-	target := game.Board.GetPiece(move.To)
-	isCapture := target != engine.NoPiece
-	if !isCapture {
-		// Check En Passant (Pawn move to EP target)
-		piece := game.Board.GetPiece(move.From)
-		if piece.Type() == engine.Pawn && move.To == game.EnPassantTarget && (move.To%8 != move.From%8) {
-			isCapture = true
-		}
-	}
-
-	if !isCapture {
+	// Killer moves are quiet moves that cause a beta-cutoff.
+	if !game.IsNoisyMove(move) {
 		storeKiller(sc, ply, move)
 	}
+}
+
+// calculateLMR determines the depth reduction for Late Move Reductions.
+func calculateLMR(depth, moveIndex int, inCheck, isNoisy, givesCheck bool) int {
+	if depth < 3 || moveIndex < 4 || inCheck || isNoisy || givesCheck {
+		return 0
+	}
+
+	reduction := 1
+	if depth > 6 {
+		reduction = 2
+	}
+	if moveIndex > 10 {
+		reduction++
+	}
+
+	// Ensure we don't reduce below depth 1
+	if reduction > depth-2 {
+		reduction = depth - 2
+	}
+	return reduction
 }
 
 // shouldStop checks if the search should be interrupted due to timeout or cancellation.

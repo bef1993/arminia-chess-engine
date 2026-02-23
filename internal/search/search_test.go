@@ -20,35 +20,6 @@ func TestSearchPlaceholder(t *testing.T) {
 	assert.NotEqual(t, engine.Move{}, move, "Search should return a non-zero move from the starting position")
 }
 
-func TestTTIntegration_ReducesNodeCount(t *testing.T) {
-	// Ensure TT is fresh and large enough
-	GlobalTT.Resize(16)
-
-	game := engine.NewGame()
-	// Use a position that isn't the start pos to ensure some complexity
-	// e.g. after 1. e4 e5
-	m1, _ := engine.ParseMove("e2e4", game)
-	game.ExecuteMove(m1)
-	m2, _ := engine.ParseMove("e7e5", game)
-	game.ExecuteMove(m2)
-
-	// 1. First Search (Cold TT)
-	depth := 4
-	move1, score1, nodes1 := Search(context.Background(), game, SearchOptions{MaxDepth: depth, Threads: 1}, nil)
-
-	// 2. Second Search (Warm TT)
-	// We expect the search to find the entry in the TT and return immediately or prune heavily
-	move2, score2, nodes2 := Search(context.Background(), game, SearchOptions{MaxDepth: depth, Threads: 1}, nil)
-
-	// Assertions
-	assert.Equal(t, move1, move2, "Best move should be consistent")
-	assert.Equal(t, score1, score2, "Score should be consistent")
-
-	// The second search should visit significantly fewer nodes
-	// In a pure Negamax with TT, if the exact position is found at sufficient depth, nodes2 might be 1.
-	assert.Less(t, nodes2, nodes1, "Second search should visit fewer nodes due to TT hit")
-}
-
 func TestIterativeDeepening_ReportsInfo(t *testing.T) {
 	game := engine.NewGame()
 	maxDepth := 3

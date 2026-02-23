@@ -83,7 +83,7 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 | **3** | ✅ Complete    | FEN support, Search algorithm, evaluation function    |
 | **4** | ✅ Complete    | Advanced features (quiescence, time management, etc.) |
 | **5** | ✅ Complete    | Lichess integration (via lichess-bot)                 |
-| **6** | ⏳ In Progress | Expert features (Killer moves, Bitboards, Lazy SMP)   |
+| **6** | ✅ Complete    | Expert features (PVS, LMR, Killer Moves, Bitboards, Lazy SMP)   |
 
 ## Implemented Optimizations
 
@@ -94,6 +94,8 @@ Move notation: long algebraic (e.g., `e2e4`, `e7e8q`)
 - **Zobrist Hashing**: Efficient board state representation for table lookups.
 - **Transposition Tables**: Caching search results to avoid redundant calculations.
 - **Alpha-Beta Pruning**: Significantly reducing the search space in the Negamax algorithm.
+- **Principal Variation Search (PVS)**: An enhancement to alpha-beta that performs a full search only on the first move, assuming it's the best. Subsequent moves are tested with a faster "null window" search to prove they are inferior, drastically reducing the search space.
+- **Late Move Reductions (LMR)**: A heuristic used with PVS that reduces the search depth for moves ordered later in the list, assuming they are less likely to be good. If a reduced search shows promise, it is re-searched at full depth.
 - **Iterative Deepening**: Searching to increasing depths to ensure the best move is always available within time limits.
 - **Quiescence Search**: Extending search at leaf nodes to avoid the horizon effect in volatile positions.
 - **Lazy SMP**: Parallel search using helper threads to populate the lockless transposition table.

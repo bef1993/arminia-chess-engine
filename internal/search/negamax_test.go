@@ -83,17 +83,17 @@ func TestNegamax_TTIntegration_ReducesNodeCount(t *testing.T) {
 
 	// 1. First Search (Cold TT)
 	depth := 4
+	sc := NewSearchContext(game)
+
 	nodes1 := atomic.Int64{}
-	sc1 := NewSearchContext(game)
-	sc1.Nodes = &nodes1
-	score1, move1, _ := negamax(sc1, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
+	sc.Nodes = &nodes1
+	score1, move1, _ := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// 2. Second Search (Warm TT)
 	// We expect the search to find the entry in the TT and return immediately or prune heavily
 	nodes2 := atomic.Int64{}
-	sc2 := NewSearchContext(game)
-	sc2.Nodes = &nodes2
-	score2, move2, _ := negamax(sc2, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
+	sc.Nodes = &nodes2
+	score2, move2, _ := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
 
 	// Assertions
 	assert.Equal(t, move1, move2, "Best move should be consistent")

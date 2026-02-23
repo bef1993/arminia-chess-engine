@@ -428,19 +428,7 @@ func (g *Game) GetNoisyMoves() []Move {
 	pseudoLegalMoves := g.GenerateAllPseudoLegalMoves()
 
 	for _, move := range pseudoLegalMoves {
-		movedPiece := g.Board.GetPiece(move.From)
-		// Filter: Only keep Captures and Promotions
-		targetPiece := g.Board.GetPiece(move.To)
-		isCapture := targetPiece != NoPiece
-		isPromotion := move.PromotionPiece != NoPiece
-
-		// Check En Passant (special capture case)
-		isEnPassant := movedPiece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
-		if isEnPassant {
-			isCapture = true
-		}
-
-		if !isCapture && !isPromotion {
+		if !g.IsNoisyMove(move) {
 			continue
 		}
 
@@ -474,6 +462,23 @@ func (g *Game) ValidateMove(move Move) error {
 	}
 
 	return fmt.Errorf("illegal move")
+}
+
+// IsNoisyMove checks if a move is a capture or promotion.
+func (g *Game) IsNoisyMove(move Move) bool {
+	// A regular capture
+	if g.Board.GetPiece(move.To) != NoPiece {
+		return true
+	}
+	// A promotion
+	if move.PromotionPiece != NoPiece {
+		return true
+	}
+	// An en passant capture
+	if g.Board.GetPiece(move.From).Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8 != move.From%8) {
+		return true
+	}
+	return false
 }
 
 // Clone creates a deep copy of the game state for parallel search
