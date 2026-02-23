@@ -4,13 +4,27 @@ import (
 	"arminia-chess-engine/internal/engine"
 )
 
-// negamax implements the Negamax algorithm with alpha-beta pruning.
-// sc holds the search context (game state, cancellation, stats, RNG).
-// depth is the remaining search depth.
-// alpha and beta are the current bounds for pruning.
-// ply is the current depth in the tree (used for TT score adjustments to prefer faster checkmates).
-// extensions counts how many times we've used Check Extensions in the current line.
-// allowNull indicates whether Null Move Pruning is allowed in this node.
+// Negamax with Alpha-Beta Pruning
+// Current player is always the maximizing player
+//
+// Alpha-Beta Pruning Optimization:
+// Alpha (α) represents the minimum score that the maximizing player is assured of.
+// Beta (β) represents the maximum score that the minimizing player is assured of.
+//
+// The search maintains a window [alpha, beta].
+//   - If a move results in a score >= beta, it means this position is "too good" for the current player,
+//     implying the opponent would have avoided this branch earlier. This triggers a "Beta Cutoff" (pruning).
+//   - If a move results in a score > alpha, it means we found a better move than before. We update alpha.
+//
+// Parameters:
+// - sc: Search context (context, game, stats, rng, killerMoves).
+// - depth: Remaining search depth.
+// - alpha: The best score the side to move can guarantee so far (Lower Bound).
+// - beta: The worst score the opponent can force the side to move to accept (Upper Bound).
+// - ply: Current depth in the tree (used for TT score adjustments to prefer faster checkmates).
+// - extensions: Count of Check Extensions used in the current line.
+// - allowNull: Whether Null Move Pruning is allowed in this node (disabled in child nodes after a null move).
+//
 // Returns: score, bestMove, interrupted
 func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions int, allowNull bool) (int, engine.Move, bool) {
 	game := sc.Game
@@ -111,11 +125,16 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 			bestMove = move
 		}
 		if score > alpha {
+			// Found a better move for the current player.
+			// Update the lower bound of the search window.
 			alpha = score
 		}
 		if alpha >= beta {
+			// Beta Cutoff (Fail-High):
+			// The opponent has a better alternative at the previous node that prevents
+			// us from reaching this position. We stop searching this branch.
 			updateKillerMoves(sc, game, move, ply)
-			break // Beta cutoff
+			break
 		}
 	}
 

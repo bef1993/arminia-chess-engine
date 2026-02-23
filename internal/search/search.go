@@ -104,14 +104,14 @@ func runLazySMPHelpers(ctx context.Context, wg *sync.WaitGroup, game *engine.Gam
 		wg.Go(func() {
 			var helperSelDepth int
 			rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(threadId)))
-			killers := [MaxPly][2]engine.Move{}
+			killerMoves := [MaxPly][2]engine.Move{}
 			sc := &SearchContext{
 				Ctx:         ctx,
 				Game:        gameClone,
 				Nodes:       totalNodes,
 				SelDepth:    &helperSelDepth,
 				Rand:        rng,
-				KillerMoves: &killers,
+				KillerMoves: &killerMoves,
 			}
 
 			// Helpers run Iterative Deepening to populate TT.
@@ -132,7 +132,9 @@ func runIterativeDeepening(ctx context.Context, game *engine.Game, options Searc
 
 	bestMove = InitializeBestMoveFallback(game)
 
-	mainKillers := [MaxPly][2]engine.Move{}
+	// Killer moves are maintained across iterative deepening depths to improve move ordering.
+	// They are not reset after each depth iteration.
+	killerMoves := [MaxPly][2]engine.Move{}
 	for depth := 1; depth <= options.MaxDepth; depth++ {
 		var selDepth int
 		sc := &SearchContext{
@@ -141,7 +143,7 @@ func runIterativeDeepening(ctx context.Context, game *engine.Game, options Searc
 			Nodes:       totalNodes,
 			SelDepth:    &selDepth,
 			Rand:        nil, // Main thread is deterministic
-			KillerMoves: &mainKillers,
+			KillerMoves: &killerMoves,
 		}
 
 		eval, move, interrupted := negamax(sc, depth, -EvalInfinity, EvalInfinity, 0, 0, true)
