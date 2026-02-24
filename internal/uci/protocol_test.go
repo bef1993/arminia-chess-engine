@@ -2,9 +2,11 @@ package uci
 
 import (
 	"arminia-chess-engine/internal/engine"
+	"arminia-chess-engine/internal/polyglot"
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -359,4 +361,36 @@ func TestSetOption_Threads(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, 4, protocol.threads, "Protocol should update threads count from UCI option")
+}
+
+func TestSetOption_BookFile(t *testing.T) {
+	// We need a dummy book file.
+	dummyBookPath := "dummy_book.bin"
+	f, err := os.Create(dummyBookPath)
+	assert.NoError(t, err)
+	f.Close()
+	defer os.Remove(dummyBookPath)
+
+	inputStr := fmt.Sprintf("setoption name Book File value %s\nsetoption name OwnBook value true\nquit\n", dummyBookPath)
+	input := strings.NewReader(inputStr)
+	output := &bytes.Buffer{}
+
+	protocol := NewProtocol(input, output)
+	// Check initial state
+	assert.False(t, polyglot.BookEnabled, "Book should be disabled by default")
+	assert.Nil(t, polyglot.OpeningBook, "Book should be nil by default")
+
+	err = protocol.Run()
+	assert.NoError(t, err)
+
+	// Check final state
+	assert.True(t, polyglot.BookEnabled, "Book should be enabled")
+	assert.NotNil(t, polyglot.OpeningBook, "Book should be loaded")
+
+	// Cleanup global state for other tests
+	polyglot.BookEnabled = false
+	if polyglot.OpeningBook != nil {
+		polyglot.OpeningBook.Close()
+		polyglot.OpeningBook = nil
+	}
 }

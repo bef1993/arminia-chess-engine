@@ -3,6 +3,7 @@ package uci
 import (
 	"arminia-chess-engine/internal/debug"
 	"arminia-chess-engine/internal/engine"
+	"arminia-chess-engine/internal/polyglot"
 	"arminia-chess-engine/internal/search"
 	"bufio"
 	"context"
@@ -119,6 +120,8 @@ func (u *Protocol) sendUCIOptions() error {
 		"option name Move Overhead type spin default 10 min 0 max 5000",
 		"option name SyzygyPath type string default <empty>",
 		"option name UCI_ShowWDL type check default false",
+		"option name OwnBook type check default false",
+		"option name Book File type string default <empty>",
 	}
 
 	for _, opt := range options {
@@ -136,32 +139,55 @@ func (u *Protocol) handleIsReady() error {
 
 // handleSetOption processes option setting
 func (u *Protocol) handleSetOption(args []string) error {
-	// Parse: setoption name <id> value <x>
 	slog.Info("SetOption", "args", args)
 
-	var name, value string
-	for i := 0; i < len(args); i++ {
-		if args[i] == "name" && i+1 < len(args) {
-			name = args[i+1]
+	var nameParts, valueParts []string
+	parsingName := false
+	parsingValue := false
+
+	for _, part := range args {
+		if part == "name" {
+			parsingName = true
+			parsingValue = false
+			continue
 		}
-		if args[i] == "value" && i+1 < len(args) {
-			value = args[i+1]
+		if part == "value" {
+			parsingValue = true
+			parsingName = false
+			continue
+		}
+
+		if parsingName {
+			nameParts = append(nameParts, part)
+		} else if parsingValue {
+			valueParts = append(valueParts, part)
 		}
 	}
+
+	name := strings.Join(nameParts, " ")
+	value := strings.Join(valueParts, " ")
 
 	if strings.EqualFold(name, "Hash") {
 		sizeMB, err := strconv.Atoi(value)
 		if err == nil {
 			u.ensureSearchStopped()
-			slog.Info("Resizing Hash", "sizeMB", sizeMB)
 			search.GlobalTT.Resize(sizeMB)
 		}
 	} else if strings.EqualFold(name, "Threads") {
 		threads, err := strconv.Atoi(value)
 		if err == nil {
 			u.ensureSearchStopped()
-			slog.Info("Setting Threads", "count", threads)
 			u.threads = threads
+		}
+	} else if strings.EqualFold(name, "OwnBook") {
+		enabled, err := strconv.ParseBool(value)
+		if err == nil {
+			polyglot.BookEnabled = enabled
+		}
+	} else if strings.EqualFold(name, "Book File") {
+		if err := polyglot.OpenBook(value); err != nil {
+			slog.Error("Failed to open book file", "path", value, "error", err)
+			u.writeLine(fmt.Sprintf("info string failed to open book: %v", err))
 		}
 	}
 
@@ -440,6 +466,11 @@ func (u *Protocol) runSearch(options search.SearchOptions, duration time.Duratio
 
 // sendSearchInfo formats and sends search progress information
 func (u *Protocol) sendSearchInfo(info search.SearchInfo, start time.Time) {
+	if info.FromBook {
+		u.writeLine(fmt.Sprintf("info string book move %s", info.PV[0].String()))
+		return
+	}
+
 	elapsed := time.Since(start)
 	ms := elapsed.Milliseconds()
 	var nps int64

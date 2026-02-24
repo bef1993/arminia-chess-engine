@@ -2,6 +2,8 @@ package search
 
 import (
 	"arminia-chess-engine/internal/engine"
+
+	"arminia-chess-engine/internal/polyglot"
 	"context"
 	"math/rand"
 	"sync"
@@ -42,6 +44,7 @@ type SearchInfo struct {
 	Nodes    int64
 	BestMove engine.Move
 	PV       []engine.Move
+	FromBook bool
 }
 
 // SearchOptions holds configuration for the search
@@ -76,8 +79,15 @@ func NewSearchContext(game *engine.Game) *SearchContext {
 // Search finds the best move for the current position.
 // This is the entry point for the search algorithm.
 // Returns the best move, the score, and the number of nodes visited.
-// infoCh is a channel to report search progress (can be nil).
+// The infoCh channel is used to report search progress (can be nil).
 func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoCh chan<- SearchInfo) (engine.Move, int, int64) {
+	// Check opening book first
+	if polyglot.BookEnabled && polyglot.OpeningBook != nil && game.FullMoveCounter*2 <= polyglot.BookMaxDepth {
+		if move, ok := probeBook(game, infoCh); ok {
+			return move, 0, 1
+		}
+	}
+
 	totalNodes := atomic.Int64{}
 	var wg sync.WaitGroup
 
@@ -91,6 +101,27 @@ func Search(ctx context.Context, game *engine.Game, options SearchOptions, infoC
 	wg.Wait()
 
 	return bestMove, score, totalNodes.Load()
+}
+
+// probeBook checks if there's a move in the opening book.
+func probeBook(game *engine.Game, infoCh chan<- SearchInfo) (engine.Move, bool) {
+	bookMove := polyglot.OpeningBook.Probe(game)
+	if bookMove == (engine.Move{}) {
+		return engine.Move{}, false
+	}
+
+	if infoCh != nil {
+		infoCh <- SearchInfo{
+			Depth:    1,
+			SelDepth: 1,
+			Score:    0, // Score is not calculated for book moves
+			Nodes:    1, // Visited 1 "node" (the book lookup)
+			BestMove: bookMove,
+			PV:       []engine.Move{bookMove},
+			FromBook: true,
+		}
+	}
+	return bookMove, true
 }
 
 // runLazySMPHelpers spawns helper threads to populate the TT.
