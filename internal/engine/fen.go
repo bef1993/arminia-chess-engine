@@ -113,7 +113,7 @@ func (g *Game) GenerateFEN() string {
 	for rank := 7; rank >= 0; rank-- {
 		emptyCount := 0
 		for file := 0; file < 8; file++ {
-			piece := g.Board.GetPiece(GetSq(file, rank))
+			piece := g.Board.Squares[GetSq(file, rank)]
 			if piece == NoPiece {
 				emptyCount++
 			} else {

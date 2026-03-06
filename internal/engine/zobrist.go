@@ -46,7 +46,7 @@ func (g *Game) ComputeZobristHash() uint64 {
 
 	// 1. Pieces
 	for sq := 0; sq < 64; sq++ {
-		piece := g.Board.GetPiece(sq)
+		piece := g.Board.Squares[sq]
 		if piece != NoPiece {
 			// Assuming PieceType constants map to 0-7 range
 			// Assuming Color constants: White=0, Black=1

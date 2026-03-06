@@ -75,7 +75,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	oldGame := g.Clone()
 	g.PreviousState = oldGame
 
-	piece := g.Board.GetPiece(move.From)
+	piece := g.Board.Squares[move.From]
 	if piece == NoPiece || piece.Color() != g.CurrentTurn {
 		return false
 	}
@@ -97,7 +97,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 	hash ^= zobristPiece[piece.Color()][piece.Type()][move.To]
 
 	// Determine move type from board state
-	targetPiece := g.Board.GetPiece(move.To)
+	targetPiece := g.Board.Squares[move.To]
 	isCapture := targetPiece != NoPiece
 	isPawnMove := piece.Type() == Pawn
 
@@ -121,7 +121,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 		g.Board.SetPiece(captureSq, NoPiece)
 
 		// Update Hash: Remove captured EP pawn
-		hash ^= zobristPiece[g.CurrentTurn][Pawn][captureSq]
+		hash ^= zobristPiece[g.CurrentTurn.Opposite()][Pawn][captureSq]
 	}
 
 	// Execute the move on the board
@@ -134,7 +134,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 			g.Board.MovePiece(GetSq(FileH, rank), GetSq(FileF, rank))
 
 			// Update Hash: Move Rook
-			rook := g.Board.GetPiece(GetSq(FileF, rank))
+			rook := g.Board.Squares[GetSq(FileF, rank)]
 			oldRookSq := GetSq(FileH, rank)
 			newRookSq := GetSq(FileF, rank)
 			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
@@ -143,7 +143,7 @@ func (g *Game) ExecuteMove(move Move) bool {
 			g.Board.MovePiece(GetSq(FileA, rank), GetSq(FileD, rank))
 
 			// Update Hash: Move Rook
-			rook := g.Board.GetPiece(GetSq(FileD, rank))
+			rook := g.Board.Squares[GetSq(FileD, rank)]
 			oldRookSq := GetSq(FileA, rank)
 			newRookSq := GetSq(FileD, rank)
 			hash ^= zobristPiece[rook.Color()][rook.Type()][oldRookSq]
@@ -375,8 +375,8 @@ func (g *Game) IsInsufficientMaterial() bool {
 // It performs a simplified make/unmake on the board to see if the king is left in check.
 // TODO maybe use ExecuteMove() instead of custom code
 func (g *Game) isKingInCheckAfterMove(move Move) bool {
-	movedPiece := g.Board.GetPiece(move.From)
-	targetPiece := g.Board.GetPiece(move.To)
+	movedPiece := g.Board.Squares[move.From]
+	targetPiece := g.Board.Squares[move.To]
 
 	// Handle En Passant simulation (remove the captured pawn)
 	isEnPassant := movedPiece.Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8) != (move.From%8)
@@ -384,7 +384,7 @@ func (g *Game) isKingInCheckAfterMove(move Move) bool {
 	var epCaptureSq int
 	if isEnPassant {
 		epCaptureSq = GetSq(GetFile(move.To), GetRank(move.From))
-		epCapturedPiece = g.Board.GetPiece(epCaptureSq)
+		epCapturedPiece = g.Board.Squares[epCaptureSq]
 		g.Board.SetPiece(epCaptureSq, NoPiece)
 	}
 
@@ -467,7 +467,7 @@ func (g *Game) ValidateMove(move Move) error {
 // IsNoisyMove checks if a move is a capture or promotion.
 func (g *Game) IsNoisyMove(move Move) bool {
 	// A regular capture
-	if g.Board.GetPiece(move.To) != NoPiece {
+	if g.Board.Squares[move.To] != NoPiece {
 		return true
 	}
 	// A promotion
@@ -475,7 +475,7 @@ func (g *Game) IsNoisyMove(move Move) bool {
 		return true
 	}
 	// An en passant capture
-	if g.Board.GetPiece(move.From).Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8 != move.From%8) {
+	if g.Board.Squares[move.From].Type() == Pawn && move.To == g.EnPassantTarget && (move.To%8 != move.From%8) {
 		return true
 	}
 	return false

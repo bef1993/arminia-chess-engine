@@ -70,13 +70,13 @@ func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 	if color == White {
 		// Single Push
 		toSq := sq + 8
-		if toSq < 64 && !g.Board.Occupancy[AnyColor].IsSet(toSq) {
-			if toSq >= 56 { // Rank 8 (Promotion)
+		if IsOnBoard(toSq) && !g.Board.Occupancy[AnyColor].IsSet(toSq) {
+			if GetRank(toSq) == Rank8 { // Promotion
 				addPromotionMoves(toSq)
 			} else {
 				moves = append(moves, NewMove(sq, toSq))
 				// Double Push (only if single push was valid and on Rank 2)
-				if sq >= 8 && sq <= 15 { // Rank 2
+				if GetRank(sq) == Rank2 {
 					toSq2 := sq + 16
 					if !g.Board.Occupancy[AnyColor].IsSet(toSq2) {
 						moves = append(moves, NewMove(sq, toSq2))
@@ -87,13 +87,13 @@ func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 	} else { // Black
 		// Single Push
 		toSq := sq - 8
-		if toSq >= 0 && !g.Board.Occupancy[AnyColor].IsSet(toSq) {
-			if toSq <= 7 { // Rank 1 (Promotion)
+		if IsOnBoard(toSq) && !g.Board.Occupancy[AnyColor].IsSet(toSq) {
+			if GetRank(toSq) == Rank1 { // Promotion
 				addPromotionMoves(toSq)
 			} else {
 				moves = append(moves, NewMove(sq, toSq))
 				// Double Push (only if single push was valid and on Rank 7)
-				if sq >= 48 && sq <= 55 { // Rank 7
+				if GetRank(sq) == Rank7 {
 					toSq2 := sq - 16
 					if !g.Board.Occupancy[AnyColor].IsSet(toSq2) {
 						moves = append(moves, NewMove(sq, toSq2))
@@ -110,7 +110,7 @@ func (g *Game) generatePawnMoves(sq int, color Color) []Move {
 	validCaptures := attacks & g.Board.Occupancy[opponent]
 	for validCaptures != 0 {
 		toSq := validCaptures.PopLSB()
-		if (color == White && toSq >= 56) || (color == Black && toSq <= 7) {
+		if (color == White && GetRank(toSq) == Rank8) || (color == Black && GetRank(toSq) == Rank1) {
 			addPromotionMoves(toSq)
 		} else {
 			moves = append(moves, NewMove(sq, toSq))
@@ -209,10 +209,10 @@ func (g *Game) generateKnightMoves(sq int, color Color) []Move {
 	return moves
 }
 
-func (g *Game) generateBishopMoves(sq int, color Color) []Move {
+func (g *Game) generateSlidingMoves(sq int, color Color, getAttacks func(sq int, occ Bitboard) Bitboard) []Move {
 	var moves []Move
 
-	attacks := GetBishopAttacks(sq, g.Board.Occupancy[AnyColor])
+	attacks := getAttacks(sq, g.Board.Occupancy[AnyColor])
 	validMoves := attacks & ^g.Board.Occupancy[color]
 
 	for validMoves != 0 {
@@ -221,34 +221,18 @@ func (g *Game) generateBishopMoves(sq int, color Color) []Move {
 	}
 
 	return moves
+}
+
+func (g *Game) generateBishopMoves(sq int, color Color) []Move {
+	return g.generateSlidingMoves(sq, color, GetBishopAttacks)
 }
 
 func (g *Game) generateRookMoves(sq int, color Color) []Move {
-	var moves []Move
-
-	attacks := GetRookAttacks(sq, g.Board.Occupancy[AnyColor])
-	validMoves := attacks & ^g.Board.Occupancy[color]
-
-	for validMoves != 0 {
-		toSq := validMoves.PopLSB()
-		moves = append(moves, NewMove(sq, toSq))
-	}
-
-	return moves
+	return g.generateSlidingMoves(sq, color, GetRookAttacks)
 }
 
 func (g *Game) generateQueenMoves(sq int, color Color) []Move {
-	var moves []Move
-
-	attacks := GetQueenAttacks(sq, g.Board.Occupancy[AnyColor])
-	validMoves := attacks & ^g.Board.Occupancy[color]
-
-	for validMoves != 0 {
-		toSq := validMoves.PopLSB()
-		moves = append(moves, NewMove(sq, toSq))
-	}
-
-	return moves
+	return g.generateSlidingMoves(sq, color, GetQueenAttacks)
 }
 
 func (g *Game) generateKingMoves(sq int, color Color) []Move {

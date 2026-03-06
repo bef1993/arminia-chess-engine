@@ -109,7 +109,7 @@ func PrintBoard(w io.Writer, g *engine.Game) {
 		fmt.Fprint(w, "║")
 
 		for file := 0; file < 8; file++ {
-			piece := g.Board.GetPiece(engine.GetSq(file, rank))
+			piece := g.Board.Squares[engine.GetSq(file, rank)]
 			if piece != engine.NoPiece {
 				fmt.Fprint(w, piece.GetSymbol())
 			} else {

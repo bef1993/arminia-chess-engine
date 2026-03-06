@@ -17,14 +17,14 @@ func TestBoardInitializeStartingPosition(t *testing.T) {
 	// Check white pawns on Rank 2
 	for file := 0; file < 8; file++ {
 		sq := GetSq(file, Rank2)
-		piece := board.GetPiece(sq)
+		piece := board.Squares[sq]
 		assert.Equal(t, WhitePawn, piece, "Expected WhitePawn at %d", sq)
 	}
 
 	// Check black pawns on Rank 7
 	for file := 0; file < 8; file++ {
 		sq := GetSq(file, Rank7)
-		piece := board.GetPiece(sq)
+		piece := board.Squares[sq]
 		assert.Equal(t, BlackPawn, piece, "Expected BlackPawn at %d", sq)
 	}
 
@@ -32,7 +32,7 @@ func TestBoardInitializeStartingPosition(t *testing.T) {
 	expectedWhiteBack := []PieceType{Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook}
 	for file, expectedType := range expectedWhiteBack {
 		sq := GetSq(file, Rank1)
-		piece := board.GetPiece(sq)
+		piece := board.Squares[sq]
 		assert.Equal(t, expectedType, piece.Type(), "Expected %v at %d", expectedType, sq)
 		assert.Equal(t, White, piece.Color())
 	}
@@ -41,7 +41,7 @@ func TestBoardInitializeStartingPosition(t *testing.T) {
 	expectedBlackBack := []PieceType{Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook}
 	for file, expectedType := range expectedBlackBack {
 		sq := GetSq(file, Rank8)
-		piece := board.GetPiece(sq)
+		piece := board.Squares[sq]
 		assert.Equal(t, expectedType, piece.Type(), "Expected %v at %d", expectedType, sq)
 		assert.Equal(t, Black, piece.Color())
 	}
@@ -50,24 +50,9 @@ func TestBoardInitializeStartingPosition(t *testing.T) {
 	for rank := Rank3; rank <= Rank6; rank++ {
 		for file := 0; file < 8; file++ {
 			sq := GetSq(file, rank)
-			piece := board.GetPiece(sq)
+			piece := board.Squares[sq]
 			assert.Equal(t, NoPiece, piece, "Expected empty square at (file=%d, rank=%d)", file, rank)
 		}
-	}
-}
-
-func TestGetPieceOutOfBounds(t *testing.T) {
-	board := NewBoard()
-
-	tests := []int{
-		-1,
-		64,
-		100,
-	}
-
-	for _, sq := range tests {
-		piece := board.GetPiece(sq)
-		assert.Equal(t, NoPiece, piece, "GetPiece(%d) = %v, want NoPiece for out of bounds", sq, piece)
 	}
 }
 

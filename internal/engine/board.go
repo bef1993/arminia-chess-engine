@@ -3,9 +3,11 @@ package engine
 import "math/bits"
 
 // Board holds bitboard representations of piece placements and occupancy for efficient move generation and evaluation.
+// It also contains a "mailbox" representation of the board for fast piece lookups.
 type Board struct {
 	Pieces    [2][6]Bitboard // [color][pieceType] bitboards for each piece type and color
 	Occupancy [3]Bitboard    // bitboard for occupied squares: [0] white, [1] black, [2] all
+	Squares   [64]Piece      // "Mailbox" representation for O(1) piece lookup
 }
 
 // Board coordinates constants for readability
@@ -51,6 +53,9 @@ func (b *Board) Clear() {
 		b.Pieces[White][i] = 0
 		b.Pieces[Black][i] = 0
 	}
+	for i := 0; i < 64; i++ {
+		b.Squares[i] = NoPiece
+	}
 	b.Occupancy[White] = 0
 	b.Occupancy[Black] = 0
 	b.Occupancy[AnyColor] = 0
@@ -61,34 +66,30 @@ func (b *Board) InitializeStartingPosition() {
 	b.Clear()
 
 	// White Pieces
-	b.Pieces[White][Pawn] = 0x000000000000FF00 // Rank 2
-	b.Pieces[White][Rook].Set(A1)
-	b.Pieces[White][Rook].Set(H1)
-	b.Pieces[White][Knight].Set(B1)
-	b.Pieces[White][Knight].Set(G1)
-	b.Pieces[White][Bishop].Set(C1)
-	b.Pieces[White][Bishop].Set(F1)
-	b.Pieces[White][Queen].Set(D1)
-	b.Pieces[White][King].Set(E1)
+	for f := FileA; f <= FileH; f++ {
+		b.SetPiece(GetSq(f, Rank2), Pawn.White())
+	}
+	b.SetPiece(GetSq(FileA, Rank1), Rook.White())
+	b.SetPiece(GetSq(FileH, Rank1), Rook.White())
+	b.SetPiece(GetSq(FileB, Rank1), Knight.White())
+	b.SetPiece(GetSq(FileG, Rank1), Knight.White())
+	b.SetPiece(GetSq(FileC, Rank1), Bishop.White())
+	b.SetPiece(GetSq(FileF, Rank1), Bishop.White())
+	b.SetPiece(GetSq(FileD, Rank1), Queen.White())
+	b.SetPiece(GetSq(FileE, Rank1), King.White())
 
 	// Black Pieces
-	b.Pieces[Black][Pawn] = 0x00FF000000000000 // Rank 7
-	b.Pieces[Black][Rook].Set(A8)
-	b.Pieces[Black][Rook].Set(H8)
-	b.Pieces[Black][Knight].Set(B8)
-	b.Pieces[Black][Knight].Set(G8)
-	b.Pieces[Black][Bishop].Set(C8)
-	b.Pieces[Black][Bishop].Set(F8)
-	b.Pieces[Black][Queen].Set(D8)
-	b.Pieces[Black][King].Set(E8)
-
-	// Update Occupancy
-	for i := 0; i < 6; i++ {
-		b.Occupancy[White] |= b.Pieces[White][i]
-		b.Occupancy[Black] |= b.Pieces[Black][i]
+	for f := FileA; f <= FileH; f++ {
+		b.SetPiece(GetSq(f, Rank7), Pawn.Black())
 	}
-
-	b.Occupancy[AnyColor] = b.Occupancy[White] | b.Occupancy[Black]
+	b.SetPiece(GetSq(FileA, Rank8), Rook.Black())
+	b.SetPiece(GetSq(FileH, Rank8), Rook.Black())
+	b.SetPiece(GetSq(FileB, Rank8), Knight.Black())
+	b.SetPiece(GetSq(FileG, Rank8), Knight.Black())
+	b.SetPiece(GetSq(FileC, Rank8), Bishop.Black())
+	b.SetPiece(GetSq(FileF, Rank8), Bishop.Black())
+	b.SetPiece(GetSq(FileD, Rank8), Queen.Black())
+	b.SetPiece(GetSq(FileE, Rank8), King.Black())
 }
 
 // IsOnBoard checks if a square index is valid (0-63)
@@ -116,66 +117,37 @@ func GetSq(file, rank int) int {
 	return rank*8 + file
 }
 
-// GetPiece returns the piece at the given position
-func (b *Board) GetPiece(sq int) Piece {
-	if !IsOnBoard(sq) {
-		return NoPiece
-	}
-	if !b.Occupancy[AnyColor].IsSet(sq) {
-		return NoPiece
-	}
-
-	// Check White
-	if b.Occupancy[White].IsSet(sq) {
-		for i := 0; i < 6; i++ {
-			if b.Pieces[White][i].IsSet(sq) {
-				return PieceType(i).White()
-			}
-		}
-	} else {
-		for i := 0; i < 6; i++ {
-			if b.Pieces[Black][i].IsSet(sq) {
-				return PieceType(i).Black()
-			}
-		}
-	}
-	return NoPiece
-}
-
-// SetPiece places a piece at the given position
+// SetPiece places a piece at the given position, keeping all board representations in sync.
 func (b *Board) SetPiece(sq int, piece Piece) {
 	if !IsOnBoard(sq) {
 		return
 	}
 
-	// Clear existing piece
-	if b.Occupancy[AnyColor].IsSet(sq) {
-		b.Occupancy[White].Clear(sq)
-		b.Occupancy[Black].Clear(sq)
-		b.Occupancy[AnyColor].Clear(sq)
+	// Get the piece currently on the square
+	oldPiece := b.Squares[sq]
 
-		for i := 0; i < 6; i++ {
-			b.Pieces[White][i].Clear(sq)
-			b.Pieces[Black][i].Clear(sq)
-		}
+	// If there was a piece, clear it from the bitboards
+	if oldPiece != NoPiece {
+		b.Pieces[oldPiece.Color()][oldPiece.Type()].Clear(sq)
+		b.Occupancy[oldPiece.Color()].Clear(sq)
 	}
 
-	if piece == NoPiece {
-		return
+	// Update the Squares array with the new piece
+	b.Squares[sq] = piece
+
+	// If the new piece is not NoPiece, add it to the bitboards
+	if piece != NoPiece {
+		b.Pieces[piece.Color()][piece.Type()].Set(sq)
+		b.Occupancy[piece.Color()].Set(sq)
 	}
 
-	// Set new piece
-	color := piece.Color()
-	pieceType := piece.Type()
-
-	b.Pieces[color][pieceType].Set(sq)
-	b.Occupancy[color].Set(sq)
-	b.Occupancy[AnyColor].Set(sq)
+	// Update the combined occupancy bitboard
+	b.Occupancy[AnyColor] = b.Occupancy[White] | b.Occupancy[Black]
 }
 
 // MovePiece moves a piece from source to destination
 func (b *Board) MovePiece(from, to int) bool {
-	piece := b.GetPiece(from)
+	piece := b.Squares[from]
 	if piece == NoPiece {
 		return false
 	}
@@ -353,7 +325,11 @@ func (b *Board) RemovePieceAt(sq string) {
 
 // GetPieceAt retrieves a piece using algebraic notation (e.g., "e4")
 func (b *Board) GetPieceAt(sq string) Piece {
-	return b.GetPiece(Sq(sq))
+	idx := Sq(sq)
+	if idx == -1 {
+		return NoPiece
+	}
+	return b.Squares[idx]
 }
 
 // IsInsufficientMaterial checks if there are enough pieces to force a checkmate

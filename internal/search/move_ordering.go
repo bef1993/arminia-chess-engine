@@ -61,8 +61,8 @@ func orderMoves(sc *SearchContext, moves []engine.Move, ttMove engine.Move, ply 
 
 		score := 0
 
-		attacker := game.Board.GetPiece(move.From)
-		victim := game.Board.GetPiece(move.To)
+		attacker := game.Board.Squares[move.From]
+		victim := game.Board.Squares[move.To]
 		if victim != engine.NoPiece {
 			// MVV-LVA score: 10 * victim - attacker
 			// Offset by 1000000 to prioritize over quiet moves

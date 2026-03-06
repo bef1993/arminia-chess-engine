@@ -4,6 +4,45 @@ import (
 	"arminia-chess-engine/internal/engine"
 )
 
+// probeTT looks up the current position in the transposition table.
+// It returns the best move from the TT (if any) and a boolean indicating
+// whether a cutoff is justified based on the TT entry. If cutoff is true,
+// the returned score is the value to return from the parent search function.
+func probeTT(sc *SearchContext, ply, depth int, alpha, beta *int) (ttMove engine.Move, score int, cutoff bool) {
+	if entry, ok := GlobalTT.Probe(sc.Game.ZobristHash); ok {
+		ttMove = entry.BestMove
+		// Don't cut off at the root (ply 0) to ensure we search and report stats
+		if ply > 0 && entry.Depth >= depth {
+			score = scoreFromTT(entry.Score, ply)
+			if entry.Flag == FlagExact {
+				return ttMove, score, true
+			}
+			switch entry.Flag {
+			case FlagLowerBound:
+				if score > *alpha {
+					*alpha = score
+				}
+			case FlagUpperBound:
+				if score < *beta {
+					*beta = score
+				}
+			}
+			if *alpha >= *beta {
+				return ttMove, score, true
+			}
+		}
+	}
+	return ttMove, 0, false
+}
+
+// applyCheckExtensions increases the search depth if the king is in check.
+func applyCheckExtensions(inCheck bool, extensions *int, depth *int) {
+	if inCheck && *extensions < 3 {
+		*depth++
+		*extensions++
+	}
+}
+
 // Negamax with Alpha-Beta Pruning
 // Current player is always the maximizing player
 //
@@ -46,40 +85,16 @@ func negamax(sc *SearchContext, depth int, alpha, beta int, ply int, extensions 
 	}
 
 	alphaOrig := alpha
-	var ttMove engine.Move
 
 	// Transposition Table Lookup
-	if entry, ok := GlobalTT.Probe(game.ZobristHash); ok {
-		ttMove = entry.BestMove
-		// Don't cut off at the root (ply 0) to ensure we search and report stats
-		if ply > 0 && entry.Depth >= depth {
-			score := scoreFromTT(entry.Score, ply)
-			if entry.Flag == FlagExact {
-				return score, entry.BestMove, false
-			}
-			switch entry.Flag {
-			case FlagLowerBound:
-				if score > alpha {
-					alpha = score
-				}
-			case FlagUpperBound:
-				if score < beta {
-					beta = score
-				}
-			}
-			if alpha >= beta {
-				return score, entry.BestMove, false
-			}
-		}
+	ttMove, score, cutoff := probeTT(sc, ply, depth, &alpha, &beta)
+	if cutoff {
+		return score, ttMove, false
 	}
 
 	// Check Extensions
-	// If the side to move is in check, we extend the search depth by 1 (maximum 3 extensions)
 	inCheck := game.Board.IsKingInCheck(game.CurrentTurn)
-	if inCheck && extensions < 3 {
-		depth++
-		extensions++
-	}
+	applyCheckExtensions(inCheck, &extensions, &depth)
 
 	// Null Move Pruning
 	if score, cutoff, interrupted := nullMovePruning(sc, depth, beta, ply, extensions, allowNull, inCheck); cutoff || interrupted {
